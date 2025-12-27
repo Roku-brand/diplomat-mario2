@@ -3,8 +3,9 @@
  */
 "use strict";
 
-// Initialize the game with the first stage (desert)
-loadStage(0);
+// Initialize with stage select screen
+game.state = "select";
+game.selectedStage = 0;
 
 // Main loop
 function tick() {

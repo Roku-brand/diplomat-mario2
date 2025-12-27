@@ -11,11 +11,12 @@ const game = {
   cameraX: 0,
   cameraY: 0,
   time: 0,
-  state: "intro", // intro | play | clear | gameover
+  state: "select", // select | intro | play | clear | gameover
   introLine: 0,
   alert: 0, // 0..3 affects enemies
   message: "",
   messageT: 0,
+  selectedStage: 0, // for stage select screen
 };
 
 const player = {
