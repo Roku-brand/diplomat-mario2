@@ -581,7 +581,6 @@
   // Game loop
   // =========================================================
   function update() {
-    justPressed.clear();
     game.time++;
 
     if (game.messageT > 0) game.messageT--;
@@ -893,36 +892,137 @@
   }
 
   function drawPlayer(pal) {
-    // body
-    ctx.fillStyle = "#2563eb";
-    ctx.fillRect(player.x, player.y, player.w, player.h);
+    const px = player.x;
+    const py = player.y;
+    const pw = player.w;
+    const ph = player.h;
+    const facing = player.face; // 1 = right, -1 = left
 
-    // tie (diplomat)
-    ctx.fillStyle = "#f97316";
-    ctx.fillRect(player.x + (player.face===1 ? player.w-10 : 4), player.y + 14, 6, 14);
+    // === Legs (dark suit pants) ===
+    ctx.fillStyle = "#1e293b"; // dark navy pants
+    const legWidth = 8;
+    const legHeight = 14;
+    const legY = py + ph - legHeight;
+    // Left leg
+    ctx.fillRect(px + 4, legY, legWidth, legHeight);
+    // Right leg
+    ctx.fillRect(px + pw - 12, legY, legWidth, legHeight);
+    // Shoes
+    ctx.fillStyle = "#0f172a"; // black shoes
+    ctx.fillRect(px + 3, py + ph - 4, legWidth + 2, 4);
+    ctx.fillRect(px + pw - 13, py + ph - 4, legWidth + 2, 4);
 
-    // face / hair
-    ctx.fillStyle = "#e2e8f0";
-    ctx.fillRect(player.x + 6, player.y + 6, player.w - 12, 10);
+    // === Suit jacket (torso) ===
+    const jacketY = py + 16;
+    const jacketH = ph - 16 - legHeight;
+    ctx.fillStyle = "#1e3a5f"; // dark blue suit jacket
+    ctx.fillRect(px + 2, jacketY, pw - 4, jacketH);
+    // Jacket lapels (V-shape collar)
+    ctx.fillStyle = "#0f2942"; // darker lapel
+    ctx.beginPath();
+    ctx.moveTo(px + pw / 2, jacketY);
+    ctx.lineTo(px + 4, jacketY + 8);
+    ctx.lineTo(px + 4, jacketY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px + pw / 2, jacketY);
+    ctx.lineTo(px + pw - 4, jacketY + 8);
+    ctx.lineTo(px + pw - 4, jacketY);
+    ctx.closePath();
+    ctx.fill();
+    // Suit buttons
+    ctx.fillStyle = "#d4af37"; // gold buttons
+    ctx.beginPath();
+    ctx.arc(px + pw / 2, jacketY + 10, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px + pw / 2, jacketY + 18, 2, 0, Math.PI * 2);
+    ctx.fill();
 
-    // negotiation indicator
+    // === White dress shirt (visible under jacket) ===
+    ctx.fillStyle = "#f8fafc"; // white shirt
+    ctx.fillRect(px + pw / 2 - 4, jacketY, 8, 10);
+
+    // === Tie ===
+    ctx.fillStyle = "#dc2626"; // red tie
+    const tieX = px + pw / 2 - 3;
+    ctx.fillRect(tieX, jacketY + 2, 6, 16);
+    // Tie knot
+    ctx.fillStyle = "#b91c1c";
+    ctx.fillRect(tieX + 1, jacketY + 1, 4, 4);
+
+    // === Head ===
+    const headY = py;
+    const headH = 16;
+    // Face / skin
+    ctx.fillStyle = "#fcd9b6"; // skin tone
+    ctx.fillRect(px + 5, headY + 4, pw - 10, headH - 4);
+    // Hair
+    ctx.fillStyle = "#1c1917"; // dark hair
+    ctx.fillRect(px + 4, headY, pw - 8, 6);
+    if (facing === 1) {
+      ctx.fillRect(px + 4, headY, 4, 10); // side hair left
+    } else {
+      ctx.fillRect(px + pw - 8, headY, 4, 10); // side hair right
+    }
+    // Eyes
+    ctx.fillStyle = "#0f172a";
+    if (facing === 1) {
+      ctx.fillRect(px + pw - 12, headY + 8, 3, 3);
+    } else {
+      ctx.fillRect(px + 9, headY + 8, 3, 3);
+    }
+
+    // === Arms (suit sleeves) ===
+    ctx.fillStyle = "#1e3a5f"; // same as jacket
+    const armY = jacketY + 4;
+    const armH = 12;
+    if (facing === 1) {
+      // Right arm forward
+      ctx.fillRect(px + pw - 2, armY, 6, armH);
+      // Hand
+      ctx.fillStyle = "#fcd9b6";
+      ctx.fillRect(px + pw - 1, armY + armH, 4, 5);
+    } else {
+      // Left arm forward
+      ctx.fillRect(px - 4, armY, 6, armH);
+      // Hand
+      ctx.fillStyle = "#fcd9b6";
+      ctx.fillRect(px - 3, armY + armH, 4, 5);
+    }
+
+    // === Briefcase (diplomat accessory) ===
+    ctx.fillStyle = "#78350f"; // brown briefcase
+    const briefcaseY = armY + armH + 5;
+    if (facing === 1) {
+      ctx.fillRect(px + pw, briefcaseY, 10, 8);
+      ctx.fillStyle = "#d4af37"; // gold clasp
+      ctx.fillRect(px + pw + 3, briefcaseY + 2, 4, 2);
+    } else {
+      ctx.fillRect(px - 10, briefcaseY, 10, 8);
+      ctx.fillStyle = "#d4af37";
+      ctx.fillRect(px - 7, briefcaseY + 2, 4, 2);
+    }
+
+    // === Negotiation indicator ===
     const eNear = nearestNegotiableEnemy();
     if (game.state === "play" && eNear && !player.negotiating) {
-      // icon above player
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText("E:交渉", player.x - 6, player.y - 10);
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("E:交渉", px - 6, py - 10);
     }
 
     if (player.negotiating) {
-      // progress bar above player
       const barW = 120, barH = 10;
-      const bx = player.x + player.w/2 - barW/2;
-      const by = player.y - 24;
+      const bx = px + pw / 2 - barW / 2;
+      const by = py - 24;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(bx, by, barW, barH);
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillRect(bx+2, by+2, (barW-4) * clamp(player.negoProgress/100,0,1), barH-4);
+      ctx.fillRect(bx + 2, by + 2, (barW - 4) * clamp(player.negoProgress / 100, 0, 1), barH - 4);
       ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
       ctx.fillText("交渉中…（離れると中断）", bx, by - 6);
     }
   }
@@ -1068,6 +1168,7 @@
   function tick() {
     update();
     draw();
+    justPressed.clear(); // Clear at end of frame so input is available during update
     requestAnimationFrame(tick);
   }
   tick();
