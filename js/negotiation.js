@@ -1,5 +1,6 @@
 /**
  * Negotiation system with interactive choices
+ * 商社マン向け：お金（コイン）と人脈（コネクション）を交渉材料として使用可能
  */
 
 // Negotiation state
@@ -11,54 +12,62 @@ const negoState = {
   lastResult: null,
 };
 
-// Choice definitions for each enemy type
+// Choice definitions for each enemy type (商社マン向け)
 const NEGOTIATION_CHOICES = {
-  militia: {
-    prompt: "民兵：『通行は許可制だ。理由を言え』",
+  competitor: {
+    prompt: "競合営業：『この案件はウチが先に動いてる。引けよ』",
     options: [
-      { text: "監察団の公務だ。中立を保証する", type: "formal", successRate: 0.7, trustGain: 5, alertMod: 0 },
-      { text: "あなたたちの正義を理解している", type: "empathy", successRate: 0.8, trustGain: 8, alertMod: -1 },
-      { text: "通さないと上に報告する", type: "threat", successRate: 0.4, trustGain: 0, alertMod: 1 },
+      { text: "差別化提案：我々には独自技術がある", type: "value", successRate: 0.7, trustGain: 5, alertMod: 0 },
+      { text: "💰 価格勝負：値下げで対抗する", type: "money", successRate: 0.85, trustGain: 3, alertMod: 0, costCoins: 2 },
+      { text: "👤 人脈を使う：共通の知人から説得してもらう", type: "connection", successRate: 0.9, trustGain: 8, alertMod: -1, costConnections: 1 },
     ]
   },
-  caravan: {
-    prompt: "輸送隊：『安全保証があるなら通す。書類は？』",
+  buyer: {
+    prompt: "バイヤー：『価格と納期、両方クリアできるか？』",
     options: [
-      { text: "正式な通行許可証がある", type: "formal", successRate: 0.85, trustGain: 6, alertMod: -1 },
-      { text: "状況報告と引き換えに通行を", type: "trade", successRate: 0.75, trustGain: 10, alertMod: 0 },
-      { text: "急いでいる。形式は後で", type: "rush", successRate: 0.3, trustGain: 0, alertMod: 1 },
+      { text: "実績を提示：過去の成功事例を説明", type: "proof", successRate: 0.8, trustGain: 6, alertMod: 0 },
+      { text: "💰 特別価格：今回限りの割引を提案", type: "money", successRate: 0.9, trustGain: 4, alertMod: 0, costCoins: 3 },
+      { text: "誠意を見せる：現場視察をお約束", type: "sincerity", successRate: 0.7, trustGain: 8, alertMod: -1 },
     ]
   },
-  poacher: {
-    prompt: "密猟者：『金か、見逃しか。どっちだ』",
+  broker: {
+    prompt: "ブローカー：『紹介料は？それとも別ルートで行く？』",
     options: [
-      { text: "撤退すれば通報しない", type: "bargain", successRate: 0.7, trustGain: 5, alertMod: 0 },
-      { text: "別の稼ぎ場所を教える", type: "redirect", successRate: 0.8, trustGain: 8, alertMod: -1 },
-      { text: "金はない。力ずくか？", type: "confront", successRate: 0.35, trustGain: 0, alertMod: 2 },
+      { text: "💰 手数料を払う：正規ルートで", type: "money", successRate: 0.85, trustGain: 4, alertMod: 0, costCoins: 2 },
+      { text: "👤 直接交渉：人脈で直ルートを開拓", type: "connection", successRate: 0.8, trustGain: 10, alertMod: 0, costConnections: 1 },
+      { text: "断る：自力で進む", type: "reject", successRate: 0.5, trustGain: 0, alertMod: 1 },
     ]
   },
-  guerrilla: {
-    prompt: "ゲリラ：『正義を語るな。代案を出せ』",
+  executive: {
+    prompt: "重役：『数字で語れ。情緒では動かん』",
     options: [
-      { text: "あなたの主張を報告書に載せる", type: "voice", successRate: 0.75, trustGain: 12, alertMod: 0 },
-      { text: "撤退路を示す。損失を減らせ", type: "tactical", successRate: 0.85, trustGain: 10, alertMod: -1 },
-      { text: "これ以上は無意味だ", type: "blunt", successRate: 0.25, trustGain: 0, alertMod: 2 },
+      { text: "💰 大型投資を約束：将来の利益を提示", type: "money", successRate: 0.75, trustGain: 8, alertMod: 0, costCoins: 4 },
+      { text: "👤 役員紹介：信頼できる人脈からの推薦", type: "connection", successRate: 0.9, trustGain: 12, alertMod: -1, costConnections: 2 },
+      { text: "データで勝負：市場分析を提示", type: "logic", successRate: 0.7, trustGain: 6, alertMod: 0 },
     ]
   },
-  riot: {
-    prompt: "群衆：『真実を隠してるのか？』",
+  union: {
+    prompt: "組合代表：『労働者の権利を無視するのか？』",
     options: [
-      { text: "情報公開を約束する", type: "transparency", successRate: 0.8, trustGain: 8, alertMod: -1 },
-      { text: "あなたたちの怒りは正当だ", type: "validate", successRate: 0.7, trustGain: 6, alertMod: 0 },
-      { text: "ここを通らせてくれ", type: "dismiss", successRate: 0.3, trustGain: 0, alertMod: 1 },
+      { text: "対話を約束：定期協議の場を設ける", type: "dialogue", successRate: 0.75, trustGain: 8, alertMod: 0 },
+      { text: "💰 待遇改善：賃上げを約束", type: "money", successRate: 0.85, trustGain: 6, alertMod: -1, costCoins: 3 },
+      { text: "👤 仲介者を立てる：労使双方の信頼者", type: "connection", successRate: 0.8, trustGain: 10, alertMod: 0, costConnections: 1 },
     ]
   },
-  security: {
-    prompt: "治安部隊：『許可番号を提示しろ。ないなら引き返せ』",
+  government: {
+    prompt: "官僚：『許認可がなければ話にならん。書類は？』",
     options: [
-      { text: "監察団ID-7749。確認を", type: "procedure", successRate: 0.9, trustGain: 8, alertMod: -1 },
-      { text: "上官に連絡を取ってくれ", type: "escalate", successRate: 0.6, trustGain: 4, alertMod: 0 },
-      { text: "緊急事態だ。通せ", type: "urgent", successRate: 0.35, trustGain: 0, alertMod: 1 },
+      { text: "正規手続き：必要書類を全て準備", type: "procedure", successRate: 0.8, trustGain: 6, alertMod: 0 },
+      { text: "👤 政界人脈：適切なチャネルで働きかけ", type: "connection", successRate: 0.95, trustGain: 10, alertMod: -1, costConnections: 2 },
+      { text: "💰 経済効果を強調：雇用創出の数字", type: "money", successRate: 0.7, trustGain: 4, alertMod: 0, costCoins: 2 },
+    ]
+  },
+  gatekeeper: {
+    prompt: "受付：『アポなしでは通せません。交渉材料は？』",
+    options: [
+      { text: "💰 謝礼を渡す：お土産を持参", type: "money", successRate: 0.8, trustGain: 3, alertMod: 0, costCoins: 1 },
+      { text: "👤 紹介状を見せる：知人からの推薦状", type: "connection", successRate: 0.9, trustGain: 5, alertMod: 0, costConnections: 1 },
+      { text: "誠意で説得：目的と熱意を伝える", type: "sincerity", successRate: 0.6, trustGain: 4, alertMod: 0 },
     ]
   },
 };
@@ -92,8 +101,8 @@ function startNegotiation(e) {
   } else {
     // Fallback for undefined types
     negoState.choices = [
-      { text: "理解を求める", type: "default", successRate: 0.6, trustGain: 5, alertMod: 0 },
-      { text: "強引に通る", type: "force", successRate: 0.3, trustGain: 0, alertMod: 1 },
+      { text: "提案する：Win-Winを模索", type: "default", successRate: 0.6, trustGain: 5, alertMod: 0 },
+      { text: "強引に進む", type: "force", successRate: 0.3, trustGain: 0, alertMod: 1 },
     ];
     say(e.talkText || "交渉を開始", 140);
   }
@@ -122,7 +131,7 @@ function negotiationTick() {
 
   // If in hazard, cancel
   if (hazardTouch(player)) {
-    say("足元が不安定だ。安全を確保して交渉しろ。", 110);
+    say("不利な立場だ。安全を確保して交渉しろ。", 110);
     stopNegotiation();
     return;
   }
@@ -166,10 +175,29 @@ function executeNegotiationChoice(e) {
   const choice = negoState.choices[negoState.selectedChoice];
   if (!choice) return;
   
+  // Check if player has enough resources
+  const coinCost = choice.costCoins || 0;
+  const connectionCost = choice.costConnections || 0;
+  
+  if (coinCost > player.coins) {
+    say(`お金が足りない！（必要: ${coinCost}💰、所持: ${player.coins}💰）`, 120);
+    return;
+  }
+  if (connectionCost > player.connections) {
+    say(`人脈が足りない！（必要: ${connectionCost}👤、所持: ${player.connections}👤）`, 120);
+    return;
+  }
+  
+  // Deduct resources
+  player.coins -= coinCost;
+  player.connections -= connectionCost;
+  
   // Calculate success with difficulty and alert modifiers
   const alertPenalty = game.alert * 0.1;
   const difficultyMod = (e.difficulty - 1) * 0.15;
-  const finalRate = clamp(choice.successRate - alertPenalty - difficultyMod, 0.1, 0.95);
+  // Bonus for using resources
+  const resourceBonus = (coinCost > 0 ? 0.05 : 0) + (connectionCost > 0 ? 0.08 : 0);
+  const finalRate = clamp(choice.successRate - alertPenalty - difficultyMod + resourceBonus, 0.1, 0.95);
   
   const success = Math.random() < finalRate;
   
@@ -181,24 +209,30 @@ function executeNegotiationChoice(e) {
     player.trust = clamp(player.trust + choice.trustGain, 0, 100);
     game.alert = clamp(game.alert + choice.alertMod, 0, 3);
     
-    // Set enemy stance based on type
-    if (e.type === "caravan" || e.type === "guerrilla") {
+    // Set enemy stance
+    if (e.type === "buyer" || e.type === "executive") {
       e.stance = "allied";
     } else {
       e.stance = "neutral";
     }
     e.hostile = false;
     
+    // If this is a gatekeeper, open the gate
+    if (e.isGateGuard) {
+      openNearbyGate(e);
+    }
+    
     // Success message based on enemy type
     const successMessages = {
-      militia: "成功：民兵は道を開けた。",
-      caravan: "成功：輸送隊が通行を保証した。",
-      poacher: "成功：密猟者は引き下がった。",
-      guerrilla: "成功：ゲリラが撤退路を示した。",
-      riot: "成功：群衆が落ち着いた。",
-      security: "成功：治安部隊が通過を許可した。",
+      competitor: "成功：競合は撤退した。案件獲得！",
+      buyer: "成功：バイヤーとの契約成立！",
+      broker: "成功：ブローカーが協力的になった。",
+      executive: "成功：重役の承認を得た！",
+      union: "成功：組合との協議がまとまった。",
+      government: "成功：許認可の道筋がついた。",
+      gatekeeper: "成功：ゲートが開いた！先へ進め。",
     };
-    say(successMessages[e.type] || "成功：相手は退いた。", 180);
+    say(successMessages[e.type] || "成功：交渉成立！", 180);
     negoState.lastResult = "success";
   } else {
     // Apply failure effects
@@ -207,14 +241,30 @@ function executeNegotiationChoice(e) {
     
     // Failure message based on choice type
     const failMessages = {
-      threat: "失敗：脅しは通じなかった。警戒上昇。",
-      rush: "失敗：焦りが裏目に出た。",
-      confront: "失敗：対立が深まった。",
-      blunt: "失敗：相手の怒りを買った。",
-      dismiss: "失敗：無視は逆効果だった。",
-      urgent: "失敗：緊急性は認められなかった。",
+      money: "失敗：金額では納得してもらえなかった。",
+      connection: "失敗：人脈を使ったが響かなかった。",
+      reject: "失敗：断ったことで関係が悪化。",
+      force: "失敗：強引さが裏目に出た。",
     };
-    say(failMessages[choice.type] || "失敗：交渉は決裂した。警戒 +1", 180);
+    say(failMessages[choice.type] || "失敗：交渉決裂。評判ダウン。", 180);
     negoState.lastResult = "failure";
+  }
+}
+
+// Open nearby negotiation gate tiles when gatekeeper is convinced
+function openNearbyGate(e) {
+  const tx = Math.floor(e.x / TILE);
+  const ty = Math.floor(e.y / TILE);
+  // Search nearby tiles for gate tiles (type 5)
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const nx = tx + dx;
+      const ny = ty + dy;
+      if (ny >= 0 && ny < game.mapH && nx >= 0 && nx < game.mapW) {
+        if (game.map[ny][nx] === 5) {
+          game.map[ny][nx] = 0; // Remove gate
+        }
+      }
+    }
   }
 }

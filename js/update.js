@@ -26,7 +26,9 @@ function loadStage(idx) {
   player.dashCD = 0;
   player.negotiating = null;
   player.negoProgress = 0;
-  player.canDoubleJump = true; // reset double jump ability
+  player.canDoubleJump = true;
+  player.coins = 0; // リセット
+  player.connections = 0; // リセット
 
   // enemies
   enemies = [];
@@ -35,6 +37,14 @@ function loadStage(idx) {
     e.x = s.x; e.y = s.y;
     e.originX = e.x;
     enemies.push(e);
+  }
+
+  // collectibles (コインと人脈ポイント)
+  collectibles = [];
+  if (game.stage.collectibles) {
+    for (const c of game.stage.collectibles) {
+      collectibles.push({ ...c, collected: false });
+    }
   }
 
   // breakable tiles
@@ -73,7 +83,7 @@ function update() {
       game.introLine++;
       if (game.introLine >= game.stage.intro.length) {
         game.state = "play";
-        say("任務開始：壊さずに通れ。", 150);
+        say("交渉開始！お金💰と人脈👤を集めて契約を取れ！", 150);
       }
     }
     return;
@@ -91,23 +101,25 @@ function update() {
       // end
       game.state = "intro";
       game.stage = {
-        title: "完了：報告書は届いた",
-        palette: { sky:"#0b1020", far:"#0b1020", mid:"#0b1020", ground:"#0b1020", accent:"#e2e8f0" },
+        title: "完了：大型契約成立！",
+        palette: { sky:"#0b1020", far:"#0b1020", mid:"#0b1020", ground:"#0b1020", accent:"#f0d090" },
         intro: [
-          "あなたは最後の検問を越えた。",
-          "報告書は首都に届き、襲撃の構造は露呈する。",
-          "黒幕は一人ではない。だが、壊さずに通す道は確かに存在した。",
+          "おめでとう！全ての関門を突破した。",
+          "大型契約が成立し、会社に莫大な利益をもたらした。",
+          "商社マンとしての道はまだ続く。次の案件が待っている。",
           "もう一度遊ぶなら R。"
         ],
         map: Array.from({length:15}, () => Array(40).fill(0)),
         enemySpawns: [],
-        npcNotes: []
+        npcNotes: [],
+        collectibles: []
       };
       game.map = game.stage.map;
       game.mapH = game.map.length;
       game.mapW = game.map[0].length;
       game.introLine = 0;
       enemies = [];
+      collectibles = [];
     }
     return;
   }
@@ -171,13 +183,16 @@ function update() {
   // apply movement/collision
   resolveCollisions(player);
 
-  // hazards: trust drains; falling pits: if y > map bottom -> death
+  // Collect coins and connection points
+  updateCollectibles();
+
+  // hazards: trust drains
   if (hazardTouch(player)) {
     player.trust = clamp(player.trust - 0.35, 0, 100);
-    // In city hazard also raises alert slowly
-    if (game.stage.id === "city" && Math.random() < 0.03) {
+    // In port hazard also raises alert slowly (税関監視)
+    if (game.stage.id === "port" && Math.random() < 0.03) {
       game.alert = clamp(game.alert + 1, 0, 3);
-      say("監視が反応した。警戒 +1", 90);
+      say("税関の監視が反応した。警戒 +1", 90);
     }
   }
 
@@ -187,7 +202,7 @@ function update() {
   // goal
   if (goalTouch(player)) {
     game.state = "clear";
-    say("通過成功：次の現場へ", 120);
+    say("契約成立！次のステージへ", 120);
   }
 
   // enemy updates and interactions
@@ -197,13 +212,13 @@ function update() {
   if (player.y > game.mapH*TILE + 220) {
     // fell into pit
     player.hp = 0;
-    die("落下：落とし穴に落ちた。");
+    die("落下：契約書を落としてしまった…");
   }
   if (player.trust <= 0) {
-    die("信頼が尽きた：現場はあなたを拒絶した。");
+    die("評判が地に落ちた：取引先からの信頼を失った。");
   }
   if (player.hp <= 0) {
-    die("負傷：任務続行不能。");
+    die("体力の限界：過労でダウン。");
   }
 
   // camera
@@ -286,12 +301,33 @@ function updateEnemies() {
       // damage
       player.hp -= e.contactDamage;
       player.trust = clamp(player.trust - 7, 0, 100);
-      say("接触：押し返された（HP -1 / 信頼 -7）", 120);
+      say("衝突！商談が台無しに（HP -1 / 評判 -7）", 120);
       // knockback
       player.vx = -e.dir * 5.2;
       player.vy = -7.5;
       // alert rises on clash
       game.alert = clamp(game.alert + 1, 0, 3);
+    }
+  }
+}
+
+function updateCollectibles() {
+  const collectW = 24;
+  const collectH = 24;
+  
+  for (const c of collectibles) {
+    if (c.collected) continue;
+    
+    // Check collision with player
+    if (aabb(player.x, player.y, player.w, player.h, c.x, c.y, collectW, collectH)) {
+      c.collected = true;
+      if (c.type === "coin") {
+        player.coins++;
+        say("💰 お金+1！（交渉材料として使える）", 80);
+      } else if (c.type === "connection") {
+        player.connections++;
+        say("👤 人脈+1！（有力なコネクション獲得）", 80);
+      }
     }
   }
 }
