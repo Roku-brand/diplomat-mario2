@@ -61,6 +61,117 @@ function update() {
 
   if (game.messageT > 0) game.messageT--;
 
+  // Top menu (RPG style hub)
+  if (game.state === "topmenu") {
+    // Navigation (horizontal layout - left/right)
+    if (pressed("ArrowLeft") || pressed("a") || pressed("A")) {
+      game.topMenuSelection = (game.topMenuSelection - 1 + 3) % 3;
+    }
+    if (pressed("ArrowRight") || pressed("d") || pressed("D")) {
+      game.topMenuSelection = (game.topMenuSelection + 1) % 3;
+    }
+    // Also support up/down for accessibility
+    if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
+      game.topMenuSelection = (game.topMenuSelection - 1 + 3) % 3;
+    }
+    if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
+      game.topMenuSelection = (game.topMenuSelection + 1) % 3;
+    }
+    // Select location
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      if (game.topMenuSelection === 0) {
+        game.state = "headquarters"; // 本社
+        game.headquartersSelection = 0;
+      } else if (game.topMenuSelection === 1) {
+        game.state = "branch"; // 支社
+        game.branchSelection = 0;
+      } else {
+        game.state = "select"; // 交通センター（ステージ選択）
+      }
+    }
+    return;
+  }
+
+  // Headquarters menu (settings, outfit)
+  if (game.state === "headquarters") {
+    if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
+      game.headquartersSelection = (game.headquartersSelection - 1 + 3) % 3;
+    }
+    if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
+      game.headquartersSelection = (game.headquartersSelection + 1) % 3;
+    }
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      if (game.headquartersSelection === 0) {
+        // Change outfit (cycle through unlocked outfits)
+        let nextOutfit = (playerGlobal.outfit + 1) % playerGlobal.outfitsUnlocked.length;
+        while (!playerGlobal.outfitsUnlocked[nextOutfit] && nextOutfit !== playerGlobal.outfit) {
+          nextOutfit = (nextOutfit + 1) % playerGlobal.outfitsUnlocked.length;
+        }
+        playerGlobal.outfit = nextOutfit;
+        say("スタイル変更: スタイル " + (playerGlobal.outfit + 1), 90);
+      } else if (game.headquartersSelection === 1) {
+        // Unlock outfit (costs savings)
+        const nextUnlock = playerGlobal.outfitsUnlocked.findIndex((v, i) => !v && i > 0);
+        if (nextUnlock !== -1 && playerGlobal.savings >= 10) {
+          playerGlobal.savings -= 10;
+          playerGlobal.outfitsUnlocked[nextUnlock] = true;
+          say("新スタイル解放！", 90);
+        } else if (nextUnlock === -1) {
+          say("全てのスタイルを解放済み", 90);
+        } else {
+          say("貯金が足りない（必要: 10💰）", 90);
+        }
+      } else {
+        game.state = "topmenu"; // Back
+      }
+    }
+    if (pressed("Escape") || pressed("Backspace")) {
+      game.state = "topmenu";
+    }
+    return;
+  }
+
+  // Branch office menu (savings, connections)
+  if (game.state === "branch") {
+    if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
+      game.branchSelection = (game.branchSelection - 1 + 4) % 4;
+    }
+    if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
+      game.branchSelection = (game.branchSelection + 1) % 4;
+    }
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      if (game.branchSelection === 0) {
+        // Add to savings from stage earnings (simulated for now)
+        say("貯金は各ステージクリア後に増加します", 120);
+      } else if (game.branchSelection === 1) {
+        // Invest savings to get starting coins
+        if (playerGlobal.savings >= 5) {
+          playerGlobal.savings -= 5;
+          player.coins += 3;
+          say("投資成功！次のステージで💰+3", 90);
+        } else {
+          say("貯金が足りない（必要: 5💰）", 90);
+        }
+      } else if (game.branchSelection === 2) {
+        // Build connections
+        if (playerGlobal.savings >= 8) {
+          playerGlobal.savings -= 8;
+          playerGlobal.networkTotal += 1;
+          player.connections += 1;
+          say("人脈拡大！👤+1", 90);
+        } else {
+          say("貯金が足りない（必要: 8💰）", 90);
+        }
+      } else {
+        game.state = "topmenu"; // Back
+      }
+    }
+    if (pressed("Escape") || pressed("Backspace")) {
+      game.state = "topmenu";
+    }
+    return;
+  }
+
   // Stage selection screen
   if (game.state === "select") {
     // Navigation
@@ -73,6 +184,10 @@ function update() {
     // Select stage
     if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
       loadStage(game.selectedStage);
+    }
+    // Back to top menu
+    if (pressed("Escape") || pressed("Backspace")) {
+      game.state = "topmenu";
     }
     return;
   }
@@ -95,31 +210,20 @@ function update() {
   }
 
   if (game.state === "clear") {
+    // Add rewards to global savings
+    const stageReward = 5 + game.stageIndex * 3; // Increasing rewards per stage
+    const bonusCoins = player.coins; // Remaining coins become savings
+    const bonusConnections = player.connections; // Remaining connections add to network
+    playerGlobal.savings += stageReward + bonusCoins;
+    playerGlobal.networkTotal += bonusConnections;
+    
     if (game.stageIndex < STAGES.length - 1) {
       loadStage(game.stageIndex + 1);
     } else {
-      // end
-      game.state = "intro";
-      game.stage = {
-        title: "完了：大型契約成立！",
-        palette: { sky:"#0b1020", far:"#0b1020", mid:"#0b1020", ground:"#0b1020", accent:"#f0d090" },
-        intro: [
-          "おめでとう！全ての関門を突破した。",
-          "大型契約が成立し、会社に莫大な利益をもたらした。",
-          "商社マンとしての道はまだ続く。次の案件が待っている。",
-          "もう一度遊ぶなら R。"
-        ],
-        map: Array.from({length:15}, () => Array(40).fill(0)),
-        enemySpawns: [],
-        npcNotes: [],
-        collectibles: []
-      };
-      game.map = game.stage.map;
-      game.mapH = game.map.length;
-      game.mapW = game.map[0].length;
-      game.introLine = 0;
-      enemies = [];
-      collectibles = [];
+      // end - return to top menu
+      game.state = "topmenu";
+      game.topMenuSelection = 0;
+      say(`全ステージクリア！貯金+${stageReward + bonusCoins}　人脈+${bonusConnections}`, 300);
     }
     return;
   }
@@ -131,16 +235,15 @@ function update() {
   const left = isDown("ArrowLeft") || isDown("a") || isDown("A");
   const right = isDown("ArrowRight") || isDown("d") || isDown("D");
   const jump = pressed(" ") || pressed("ArrowUp") || pressed("w") || pressed("W");
-  const dash = pressed("Shift");
+  const dashHold = isDown("Shift");
 
-  // dash
+  // dash (hold to dash)
   if (player.dashCD > 0) player.dashCD--;
   if (player.dashT > 0) player.dashT--;
 
-  if (dash && player.dashCD === 0) {
+  if (dashHold && player.dashCD === 0) {
     player.dashT = 14;
-    player.dashCD = 65;
-    say("ダッシュ", 30);
+    player.dashCD = 10; // shorter cooldown for continuous dashing while holding
   }
 
   const moveSpeed = player.dashT > 0 ? 6.2 : 3.2;

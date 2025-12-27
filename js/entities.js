@@ -11,12 +11,23 @@ const game = {
   cameraX: 0,
   cameraY: 0,
   time: 0,
-  state: "select", // select | intro | play | clear | gameover
+  state: "topmenu", // topmenu | headquarters | branch | transit | select | intro | play | clear | gameover
   introLine: 0,
   alert: 0, // 0..3 affects enemies
   message: "",
   messageT: 0,
   selectedStage: 0, // for stage select screen
+  topMenuSelection: 0, // 0: headquarters, 1: branch, 2: transit
+  branchSelection: 0, // sub-menu selection for branch
+  headquartersSelection: 0, // sub-menu selection for headquarters
+};
+
+// Global player stats (persistent across stages)
+const playerGlobal = {
+  savings: 10, // 貯金（初期値）
+  networkTotal: 5, // 人脈蓄積（初期値）
+  outfit: 0, // 着せ替えスタイル（0: default, 1+: unlocked outfits）
+  outfitsUnlocked: [true, false, false], // 解放済み着せ替え
 };
 
 const player = {
