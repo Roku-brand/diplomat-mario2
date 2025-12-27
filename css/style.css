@@ -1,0 +1,39 @@
+/**
+ * Game styles
+ */
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #121212;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+#wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+canvas {
+  background: #0b0f14;
+  border: 1px solid #2a2f38;
+}
+
+.hint {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  color: #cbd5e1;
+  font-size: 12px;
+  opacity: 0.9;
+  background: rgba(0,0,0,0.35);
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  max-width: 520px;
+}
+
+.hint b {
+  color: #e2e8f0;
+}
