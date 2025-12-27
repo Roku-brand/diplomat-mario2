@@ -663,7 +663,6 @@
         // First jump from ground
         player.vy = -13.2;
         player.onGround = false;
-        player.canDoubleJump = true; // reset double jump when jumping from ground
       } else if (player.canDoubleJump) {
         // Double jump in air
         player.vy = -12.0; // slightly weaker than first jump
@@ -671,7 +670,7 @@
       }
     }
 
-    // Reset double jump ability when landing
+    // Reset double jump ability when landing (handles both: after double-jump and after falling)
     if (player.onGround) {
       player.canDoubleJump = true;
     }
