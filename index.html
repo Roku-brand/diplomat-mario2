@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Diplomat Run</title>
+<style>
+  body { margin:0; background:#222; }
+  canvas { display:block; margin:auto; background:#c2b280; }
+</style>
+</head>
+<body>
+<canvas id="game" width="800" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const player = {
+  x: 50, y: 300, w: 30, h: 40,
+  vx: 0, vy: 0,
+  onGround: false
+};
+
+const gravity = 0.6;
+const ground = 350;
+
+const keys = {};
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+function update() {
+  if (keys["ArrowRight"]) player.vx = 4;
+  else if (keys["ArrowLeft"]) player.vx = -4;
+  else player.vx = 0;
+
+  if (keys[" "] && player.onGround) {
+    player.vy = -12;
+    player.onGround = false;
+  }
+
+  player.vy += gravity;
+  player.x += player.vx;
+  player.y += player.vy;
+
+  if (player.y + player.h >= ground) {
+    player.y = ground - player.h;
+    player.vy = 0;
+    player.onGround = true;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 地面
+  ctx.fillStyle = "#8b5a2b";
+  ctx.fillRect(0, ground, canvas.width, 50);
+
+  // 主人公（外交官）
+  ctx.fillStyle = "#1e90ff";
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  ctx.fillStyle = "#fff";
+  ctx.fillText("Diplomat Run - Desert Stage", 20, 20);
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
