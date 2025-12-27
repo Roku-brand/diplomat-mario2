@@ -3,6 +3,24 @@
  */
 
 function draw() {
+  // Handle RPG-style top menu
+  if (game.state === "topmenu") {
+    drawTopMenuOverlay();
+    return;
+  }
+  
+  // Handle headquarters menu
+  if (game.state === "headquarters") {
+    drawHeadquartersOverlay();
+    return;
+  }
+  
+  // Handle branch office menu
+  if (game.state === "branch") {
+    drawBranchOverlay();
+    return;
+  }
+  
   // Handle stage select screen before game.stage is set
   if (game.state === "select") {
     drawStageSelectOverlay();
@@ -976,5 +994,460 @@ function drawStageSelectOverlay() {
   // Instructions
   ctx.fillStyle = "rgba(255,255,255,0.75)";
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText("↑↓ / W/S: 選択　Enter / Space / E: 決定", 40, H - 30);
+  ctx.fillText("↑↓ / W/S: 選択　Enter / Space / E: 決定　Esc / Backspace: 戻る", 40, H - 30);
+}
+
+// RPG-style Top Menu with 3 locations
+function drawTopMenuOverlay() {
+  // Full screen background with gradient
+  const gradient = ctx.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, "#0a1828");
+  gradient.addColorStop(0.5, "#1a3050");
+  gradient.addColorStop(1, "#0f2035");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
+  
+  // Draw decorative ground line
+  ctx.fillStyle = "#2a4a6a";
+  ctx.fillRect(0, H - 80, W, 80);
+  ctx.fillStyle = "#3a5a7a";
+  ctx.fillRect(0, H - 80, W, 3);
+  
+  // Draw stars
+  for (let i = 0; i < 50; i++) {
+    const sx = (game.time * 0.02 + i * 73) % W;
+    const sy = (i * 31) % (H - 100);
+    const alpha = 0.3 + Math.sin(game.time * 0.05 + i) * 0.2;
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  
+  // Title
+  ctx.fillStyle = "rgba(255, 220, 150, 0.95)";
+  ctx.font = "bold 36px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("商社マン：ビジネス交渉ゲーム", 60, 60);
+  
+  ctx.font = "16px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillStyle = "rgba(255, 200, 100, 0.7)";
+  ctx.fillText("〜 街を歩いて、交渉の舞台へ 〜", 60, 90);
+  
+  // Player global stats
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`💰 貯金: ${playerGlobal.savings}　👤 人脈蓄積: ${playerGlobal.networkTotal}　👔 スタイル: ${playerGlobal.outfit + 1}`, W - 350, 30);
+  
+  // Define the 3 locations
+  const locations = [
+    { 
+      name: "① 本社", 
+      subtitle: "設定・着せ替え",
+      desc: "キャラクターのスタイルを変更",
+      icon: "🏢",
+      x: 80,
+      color: "#4a6a9a"
+    },
+    { 
+      name: "② 支社", 
+      subtitle: "貯金・人脈蓄積",
+      desc: "資金を管理し、人脈を広げる",
+      icon: "🏦",
+      x: 340,
+      color: "#5a7a6a"
+    },
+    { 
+      name: "③ 交通センター", 
+      subtitle: "ステージ選択",
+      desc: "各地の商談現場へ出発",
+      icon: "🚉",
+      x: 600,
+      color: "#7a5a6a"
+    }
+  ];
+  
+  // Draw location cards
+  const cardY = 160;
+  const cardW = 220;
+  const cardH = 280;
+  
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i];
+    const isSelected = i === game.topMenuSelection;
+    
+    // Card background
+    if (isSelected) {
+      // Glowing effect
+      ctx.fillStyle = "rgba(255, 200, 100, 0.2)";
+      ctx.fillRect(loc.x - 8, cardY - 8, cardW + 16, cardH + 16);
+      
+      ctx.fillStyle = loc.color;
+      ctx.fillRect(loc.x, cardY, cardW, cardH);
+      ctx.strokeStyle = "#ffd700";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(loc.x, cardY, cardW, cardH);
+    } else {
+      ctx.fillStyle = "rgba(40, 60, 80, 0.7)";
+      ctx.fillRect(loc.x, cardY, cardW, cardH);
+      ctx.strokeStyle = "rgba(100, 120, 140, 0.5)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(loc.x, cardY, cardW, cardH);
+    }
+    
+    // Icon area
+    ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.15)" : "rgba(255, 255, 255, 0.08)";
+    ctx.fillRect(loc.x + 10, cardY + 10, cardW - 20, 100);
+    
+    // Icon
+    ctx.font = "60px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(loc.icon, loc.x + cardW/2 - 30, cardY + 80);
+    
+    // Building silhouette decoration
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    if (i === 0) {
+      // Headquarters - tall building
+      ctx.fillRect(loc.x + 30, cardY + 60, 25, 45);
+      ctx.fillRect(loc.x + 60, cardY + 50, 30, 55);
+      ctx.fillRect(loc.x + 95, cardY + 70, 20, 35);
+      ctx.fillRect(loc.x + 130, cardY + 55, 35, 50);
+      ctx.fillRect(loc.x + 170, cardY + 65, 20, 40);
+    } else if (i === 1) {
+      // Branch - bank style
+      ctx.fillRect(loc.x + 40, cardY + 55, 140, 50);
+      ctx.fillRect(loc.x + 70, cardY + 40, 80, 65);
+      // Columns
+      ctx.fillRect(loc.x + 55, cardY + 60, 8, 40);
+      ctx.fillRect(loc.x + 85, cardY + 60, 8, 40);
+      ctx.fillRect(loc.x + 125, cardY + 60, 8, 40);
+      ctx.fillRect(loc.x + 155, cardY + 60, 8, 40);
+    } else {
+      // Transport center - train station
+      ctx.fillRect(loc.x + 30, cardY + 70, 160, 35);
+      ctx.fillRect(loc.x + 80, cardY + 50, 60, 55);
+      // Platform
+      ctx.fillRect(loc.x + 20, cardY + 95, 180, 10);
+    }
+    
+    // Location name
+    ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.7)";
+    ctx.font = isSelected ? "bold 22px system-ui, -apple-system, Segoe UI, sans-serif" : "20px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(loc.name, loc.x + 15, cardY + 145);
+    
+    // Subtitle
+    ctx.fillStyle = isSelected ? "rgba(255, 200, 100, 0.9)" : "rgba(255, 200, 100, 0.6)";
+    ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(loc.subtitle, loc.x + 15, cardY + 170);
+    
+    // Description
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(loc.desc, loc.x + 15, cardY + 195);
+    
+    // Selection indicator
+    if (isSelected) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "24px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("▼", loc.x + cardW/2 - 8, cardY - 15);
+      
+      // Animated hint
+      const pulse = Math.sin(game.time * 0.1) * 0.2 + 0.8;
+      ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
+      ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("Enter / Space で入る", loc.x + cardW/2 - 60, cardY + cardH + 30);
+    }
+  }
+  
+  // Draw player character walking animation at bottom
+  const walkX = 50 + game.topMenuSelection * 260 + Math.sin(game.time * 0.05) * 5;
+  const walkY = H - 50;
+  drawMiniPlayer(walkX, walkY);
+  
+  // Instructions
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("←→ / A/D: 移動　Enter / Space / E: 決定", 40, H - 10);
+}
+
+// Draw mini player for menu screens
+function drawMiniPlayer(x, y) {
+  // Simple businessman sprite
+  // Legs
+  ctx.fillStyle = "#1e293b";
+  ctx.fillRect(x - 6, y - 10, 5, 10);
+  ctx.fillRect(x + 1, y - 10, 5, 10);
+  // Body/suit
+  ctx.fillStyle = "#1e3a5f";
+  ctx.fillRect(x - 8, y - 25, 16, 16);
+  // Tie
+  ctx.fillStyle = "#dc2626";
+  ctx.fillRect(x - 2, y - 24, 4, 10);
+  // Head
+  ctx.fillStyle = "#fcd9b6";
+  ctx.fillRect(x - 6, y - 35, 12, 10);
+  // Hair
+  ctx.fillStyle = "#1c1917";
+  ctx.fillRect(x - 6, y - 38, 12, 4);
+  // Briefcase
+  ctx.fillStyle = "#78350f";
+  ctx.fillRect(x + 8, y - 18, 8, 6);
+  ctx.fillStyle = "#d4af37";
+  ctx.fillRect(x + 10, y - 16, 4, 2);
+}
+
+// Headquarters menu overlay
+function drawHeadquartersOverlay() {
+  // Background
+  ctx.fillStyle = "#1a2535";
+  ctx.fillRect(0, 0, W, H);
+  
+  // Office interior pattern
+  ctx.fillStyle = "#2a3545";
+  for (let i = 0; i < 10; i++) {
+    ctx.fillRect(i * 100, 0, 2, H);
+  }
+  
+  // Title
+  ctx.fillStyle = "rgba(255, 220, 150, 0.95)";
+  ctx.font = "bold 28px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("🏢 本社 - 設定・着せ替え", 50, 50);
+  
+  // Stats display
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`💰 貯金: ${playerGlobal.savings}　現在のスタイル: スタイル${playerGlobal.outfit + 1}`, 50, 85);
+  
+  // Menu options
+  const options = [
+    { text: "👔 着せ替え変更", desc: "解放済みスタイルを切り替える" },
+    { text: "🔓 新スタイル解放", desc: `10💰で新スタイルを解放（残り: ${playerGlobal.outfitsUnlocked.filter(v => !v).length}）` },
+    { text: "◀ 戻る", desc: "トップメニューへ戻る" }
+  ];
+  
+  const menuY = 140;
+  const itemHeight = 70;
+  
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
+    const y = menuY + i * itemHeight;
+    const isSelected = i === game.headquartersSelection;
+    
+    // Background
+    if (isSelected) {
+      ctx.fillStyle = "rgba(100, 150, 200, 0.3)";
+      ctx.fillRect(40, y - 10, 400, itemHeight - 10);
+      ctx.strokeStyle = "#ffd700";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(40, y - 10, 400, itemHeight - 10);
+    }
+    
+    // Option text
+    ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.6)";
+    ctx.font = isSelected ? "bold 18px system-ui, -apple-system, Segoe UI, sans-serif" : "16px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(opt.text, 60, y + 15);
+    
+    // Description
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(opt.desc, 60, y + 35);
+    
+    if (isSelected) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "20px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("▶", 45, y + 18);
+    }
+  }
+  
+  // Preview player with current outfit
+  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.fillRect(500, 120, 200, 250);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(500, 120, 200, 250);
+  
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("プレビュー", 560, 145);
+  
+  // Draw larger player preview
+  drawPlayerPreview(580, 280, playerGlobal.outfit);
+  
+  // Unlocked styles indicator
+  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+  const unlockedCount = playerGlobal.outfitsUnlocked.filter(v => v).length;
+  ctx.fillText(`解放済み: ${unlockedCount}/${playerGlobal.outfitsUnlocked.length}`, 550, 390);
+  
+  // Instructions
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("↑↓: 選択　Enter / Space: 決定　Esc / Backspace: 戻る", 40, H - 30);
+}
+
+// Draw player preview for outfit selection
+function drawPlayerPreview(x, y, outfit) {
+  // Scale up the player (3x)
+  const scale = 3;
+  
+  // Outfit color variations
+  const outfitColors = [
+    { suit: "#1e3a5f", tie: "#dc2626", pants: "#1e293b" }, // Default blue suit, red tie
+    { suit: "#2d3748", tie: "#805ad5", pants: "#1a202c" }, // Gray suit, purple tie
+    { suit: "#1a365d", tie: "#38a169", pants: "#171923" }, // Navy suit, green tie
+  ];
+  
+  const colors = outfitColors[outfit] || outfitColors[0];
+  
+  // Legs
+  ctx.fillStyle = colors.pants;
+  ctx.fillRect(x - 8*scale, y - 14*scale, 6*scale, 14*scale);
+  ctx.fillRect(x + 2*scale, y - 14*scale, 6*scale, 14*scale);
+  
+  // Shoes
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(x - 9*scale, y - 4*scale, 7*scale, 4*scale);
+  ctx.fillRect(x + 2*scale, y - 4*scale, 7*scale, 4*scale);
+  
+  // Body/suit
+  ctx.fillStyle = colors.suit;
+  ctx.fillRect(x - 10*scale, y - 28*scale, 20*scale, 16*scale);
+  
+  // Shirt
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(x - 3*scale, y - 28*scale, 6*scale, 8*scale);
+  
+  // Tie
+  ctx.fillStyle = colors.tie;
+  ctx.fillRect(x - 2*scale, y - 27*scale, 4*scale, 14*scale);
+  
+  // Head
+  ctx.fillStyle = "#fcd9b6";
+  ctx.fillRect(x - 7*scale, y - 40*scale, 14*scale, 12*scale);
+  
+  // Hair
+  ctx.fillStyle = "#1c1917";
+  ctx.fillRect(x - 7*scale, y - 44*scale, 14*scale, 5*scale);
+  
+  // Eyes
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(x + 2*scale, y - 36*scale, 3*scale, 3*scale);
+  
+  // Briefcase
+  ctx.fillStyle = "#78350f";
+  ctx.fillRect(x + 10*scale, y - 20*scale, 10*scale, 8*scale);
+  ctx.fillStyle = "#d4af37";
+  ctx.fillRect(x + 12*scale, y - 18*scale, 6*scale, 2*scale);
+}
+
+// Branch office menu overlay
+function drawBranchOverlay() {
+  // Background
+  ctx.fillStyle = "#152525";
+  ctx.fillRect(0, 0, W, H);
+  
+  // Bank-style pattern
+  ctx.fillStyle = "#1a3030";
+  for (let i = 0; i < 8; i++) {
+    ctx.fillRect(100 + i * 120, 80, 8, H - 160);
+  }
+  
+  // Title
+  ctx.fillStyle = "rgba(255, 220, 150, 0.95)";
+  ctx.font = "bold 28px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("🏦 支社 - 貯金・人脈蓄積", 50, 50);
+  
+  // Stats display
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`💰 貯金: ${playerGlobal.savings}　👤 人脈蓄積: ${playerGlobal.networkTotal}`, 50, 85);
+  ctx.fillText(`次ステージ開始時: 💰${player.coins}　👤${player.connections}`, 50, 105);
+  
+  // Menu options
+  const options = [
+    { text: "📊 貯金状況を見る", desc: "各ステージクリアで貯金が増加します" },
+    { text: "💹 投資する", desc: `5💰 → 次ステージで💰+3（貯金: ${playerGlobal.savings}）` },
+    { text: "🤝 人脈を広げる", desc: `8💰 → 👤+1（貯金: ${playerGlobal.savings}）` },
+    { text: "◀ 戻る", desc: "トップメニューへ戻る" }
+  ];
+  
+  const menuY = 150;
+  const itemHeight = 70;
+  
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
+    const y = menuY + i * itemHeight;
+    const isSelected = i === game.branchSelection;
+    
+    // Background
+    if (isSelected) {
+      ctx.fillStyle = "rgba(100, 180, 150, 0.3)";
+      ctx.fillRect(40, y - 10, 450, itemHeight - 10);
+      ctx.strokeStyle = "#ffd700";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(40, y - 10, 450, itemHeight - 10);
+    }
+    
+    // Option text
+    ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.6)";
+    ctx.font = isSelected ? "bold 18px system-ui, -apple-system, Segoe UI, sans-serif" : "16px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(opt.text, 60, y + 15);
+    
+    // Description
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(opt.desc, 60, y + 35);
+    
+    if (isSelected) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "20px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("▶", 45, y + 18);
+    }
+  }
+  
+  // Right side: stats visualization
+  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.fillRect(520, 140, 200, 280);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(520, 140, 200, 280);
+  
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("資産状況", 585, 165);
+  
+  // Savings bar
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("💰 貯金", 540, 200);
+  
+  ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
+  ctx.fillRect(540, 210, 160, 20);
+  ctx.fillStyle = "#ffd700";
+  const savingsW = Math.min(160, playerGlobal.savings * 4);
+  ctx.fillRect(540, 210, savingsW, 20);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(`${playerGlobal.savings}`, 545, 225);
+  
+  // Network bar
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.fillText("👤 人脈", 540, 260);
+  
+  ctx.fillStyle = "rgba(74, 144, 217, 0.3)";
+  ctx.fillRect(540, 270, 160, 20);
+  ctx.fillStyle = "#4a90d9";
+  const networkW = Math.min(160, playerGlobal.networkTotal * 8);
+  ctx.fillRect(540, 270, networkW, 20);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(`${playerGlobal.networkTotal}`, 545, 285);
+  
+  // Next stage resources
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("次ステージ開始時の所持品:", 540, 330);
+  ctx.fillStyle = "#ffd700";
+  ctx.fillText(`💰 ${player.coins}`, 540, 355);
+  ctx.fillStyle = "#4a90d9";
+  ctx.fillText(`👤 ${player.connections}`, 600, 355);
+  
+  // Instructions
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("↑↓: 選択　Enter / Space: 決定　Esc / Backspace: 戻る", 40, H - 30);
 }

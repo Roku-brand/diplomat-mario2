@@ -3,8 +3,9 @@
  */
 "use strict";
 
-// Initialize with stage select screen
-game.state = "select";
+// Initialize with RPG-style top menu
+game.state = "topmenu";
+game.topMenuSelection = 0;
 game.selectedStage = 0;
 
 // Main loop
