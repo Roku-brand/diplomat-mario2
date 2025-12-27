@@ -150,7 +150,7 @@ function negotiationTick() {
       executeNegotiationChoice(e);
     }
     
-    // Confirm with Enter or Space (but not E which is held for negotiation)
+    // Confirm with Enter or Space
     if (pressed("Enter") || pressed(" ")) {
       executeNegotiationChoice(e);
     }
