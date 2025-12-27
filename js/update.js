@@ -103,12 +103,20 @@ function update() {
     if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
       if (game.headquartersSelection === 0) {
         // Change outfit (cycle through unlocked outfits)
+        const startOutfit = playerGlobal.outfit;
         let nextOutfit = (playerGlobal.outfit + 1) % playerGlobal.outfitsUnlocked.length;
-        while (!playerGlobal.outfitsUnlocked[nextOutfit] && nextOutfit !== playerGlobal.outfit) {
+        let loopCount = 0;
+        const maxLoops = playerGlobal.outfitsUnlocked.length;
+        while (!playerGlobal.outfitsUnlocked[nextOutfit] && loopCount < maxLoops) {
           nextOutfit = (nextOutfit + 1) % playerGlobal.outfitsUnlocked.length;
+          loopCount++;
         }
-        playerGlobal.outfit = nextOutfit;
-        say("スタイル変更: スタイル " + (playerGlobal.outfit + 1), 90);
+        if (playerGlobal.outfitsUnlocked[nextOutfit]) {
+          playerGlobal.outfit = nextOutfit;
+          say("スタイル変更: スタイル " + (playerGlobal.outfit + 1), 90);
+        } else {
+          say("他に解放済みのスタイルがありません", 90);
+        }
       } else if (game.headquartersSelection === 1) {
         // Unlock outfit (costs savings)
         const nextUnlock = playerGlobal.outfitsUnlocked.findIndex((v, i) => !v && i > 0);
