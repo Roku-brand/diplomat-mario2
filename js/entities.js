@@ -11,15 +11,19 @@ const game = {
   cameraX: 0,
   cameraY: 0,
   time: 0,
-  state: "topmenu", // topmenu | headquarters | branch | transit | select | intro | play | clear | gameover
+  state: "topmenu", // topmenu | headquarters | branch | transit | select | intro | play | clear | gameover | dictionary | bossIntro | bossBattle
   introLine: 0,
   alert: 0, // 0..3 affects enemies
   message: "",
   messageT: 0,
   selectedStage: 0, // for stage select screen
-  topMenuSelection: 0, // 0: headquarters, 1: branch, 2: transit
+  topMenuSelection: 0, // 0: headquarters, 1: branch, 2: transit, 3: dictionary
   branchSelection: 0, // sub-menu selection for branch
   headquartersSelection: 0, // sub-menu selection for headquarters
+  dictionaryPage: 0, // current page in connection dictionary
+  bossPhase: 0, // boss battle phase
+  bossDefeated: false, // whether current boss is defeated
+  defeatEffects: [], // visual effects for enemy defeats { x, y, timer, type, text }
 };
 
 // Global player stats (persistent across stages)
@@ -28,6 +32,37 @@ const playerGlobal = {
   networkTotal: 5, // 人脈蓄積（初期値）
   outfit: 0, // 着せ替えスタイル（0: default, 1+: unlocked outfits）
   outfitsUnlocked: [true, false, false], // 解放済み着せ替え
+  // Career advancement (出世システム)
+  careerLevel: 1, // 1=新人, 2=主任, 3=課長, 4=部長, 5=役員
+  careerExp: 0, // experience towards next level
+  totalContracts: 0, // total contracts signed
+  // Connection dictionary (人脈図鑑)
+  connectionDict: {}, // key: enemy type, value: { met: boolean, negotiated: boolean, allied: boolean, count: int }
+  stagesCleared: [false, false, false], // track which stages are cleared
+};
+
+// Career level definitions
+const CAREER_LEVELS = [
+  { level: 1, title: "新人営業", expRequired: 0, bonus: "なし" },
+  { level: 2, title: "主任", expRequired: 30, bonus: "交渉成功率+5%" },
+  { level: 3, title: "課長", expRequired: 80, bonus: "初期コイン+2" },
+  { level: 4, title: "部長", expRequired: 150, bonus: "初期人脈+1" },
+  { level: 5, title: "役員", expRequired: 300, bonus: "全ボーナス適用" },
+];
+
+// Connection dictionary entries
+const CONNECTION_TYPES = {
+  competitor: { name: "競合営業", description: "ライバル企業の営業マン。激しい競争の中で切磋琢磨。", category: "ビジネス" },
+  buyer: { name: "バイヤー", description: "取引先の購買担当。価格と品質を見極める目利き。", category: "顧客" },
+  broker: { name: "ブローカー", description: "仲介業者。広いネットワークと情報を持つ。", category: "仲介" },
+  executive: { name: "重役", description: "大企業の意思決定者。論理と数字で動く。", category: "VIP" },
+  union: { name: "組合代表", description: "労働者の代弁者。現場の声を届ける。", category: "労働" },
+  government: { name: "官僚", description: "許認可を握る政府職員。手続きと書類が命。", category: "行政" },
+  media: { name: "記者", description: "情報を追う報道関係者。交渉不可だが避けるべし。", category: "メディア" },
+  gatekeeper: { name: "受付", description: "ゲートキーパー。アポなしでは通さない門番。", category: "窓口" },
+  boss_market: { name: "海外バイヤー長", description: "展示会の最重要人物。大型契約の鍵を握る。", category: "ボス" },
+  boss_office: { name: "CEO", description: "本社の最高責任者。会社の命運を左右する。", category: "ボス" },
+  boss_port: { name: "通関局長", description: "港湾の最終権限者。輸出入の成否を決める。", category: "ボス" },
 };
 
 const player = {
@@ -131,6 +166,45 @@ function enemyTemplate(type) {
       talkText: "受付：『アポなしでは通せません。交渉してください』"
     };
   }
+  
+  // === BOSS CHARACTERS ===
+  if (type === "boss_market") {
+    // Stage 1 Boss: 海外バイヤー長
+    return { ...base,
+      vx: 0.5, patrol: 60, difficulty: 2.0, aggroRange: 350,
+      w: 36, h: 44, // larger size
+      isBoss: true,
+      bossPhase: 1, // 1-3 phases
+      bossHP: 3, // requires 3 successful negotiations
+      hostile: false, stance: "neutral",
+      talkText: "バイヤー長：『君の会社に興味がある。本気度を見せてもらおう』"
+    };
+  }
+  if (type === "boss_office") {
+    // Stage 2 Boss: CEO
+    return { ...base,
+      vx: 0.4, patrol: 40, difficulty: 2.5, aggroRange: 400,
+      w: 38, h: 46,
+      isBoss: true,
+      bossPhase: 1,
+      bossHP: 3,
+      hostile: false, stance: "neutral",
+      talkText: "CEO：『我が社との提携を望むなら、それ相応の覚悟を見せろ』"
+    };
+  }
+  if (type === "boss_port") {
+    // Stage 3 Boss: 通関局長
+    return { ...base,
+      vx: 0.3, patrol: 30, difficulty: 3.0, aggroRange: 450,
+      w: 40, h: 48,
+      isBoss: true,
+      bossPhase: 1,
+      bossHP: 3,
+      hostile: false, stance: "neutral",
+      talkText: "通関局長：『すべての書類と許可が揃っているか確認する』"
+    };
+  }
+  
   return base;
 }
 

@@ -70,6 +70,31 @@ const NEGOTIATION_CHOICES = {
       { text: "誠意で説得：目的と熱意を伝える", type: "sincerity", successRate: 0.6, trustGain: 4, alertMod: 0 },
     ]
   },
+  // === BOSS NEGOTIATION CHOICES ===
+  boss_market: {
+    prompt: "バイヤー長：『大型契約に値する企業か、見極めさせてもらう』",
+    options: [
+      { text: "💰💰 破格の条件を提示：価格優位を証明", type: "money", successRate: 0.7, trustGain: 10, alertMod: 0, costCoins: 4 },
+      { text: "👤👤 業界人脈を駆使：推薦者の連名", type: "connection", successRate: 0.85, trustGain: 15, alertMod: -1, costConnections: 2 },
+      { text: "実績プレゼン：過去の成功事例を詳細に", type: "proof", successRate: 0.6, trustGain: 8, alertMod: 0 },
+    ]
+  },
+  boss_office: {
+    prompt: "CEO：『我が社の未来を託すパートナーか、証明してみろ』",
+    options: [
+      { text: "💰💰💰 大型投資プラン：長期的リターンを提示", type: "money", successRate: 0.65, trustGain: 12, alertMod: 0, costCoins: 5 },
+      { text: "👤👤👤 役員ネットワーク：取締役会からの推薦", type: "connection", successRate: 0.8, trustGain: 18, alertMod: -1, costConnections: 3 },
+      { text: "ビジョンの共有：シナジー効果を論理的に", type: "logic", successRate: 0.55, trustGain: 10, alertMod: 0 },
+    ]
+  },
+  boss_port: {
+    prompt: "通関局長：『全ての手続きと信用を確認する。妥協はない』",
+    options: [
+      { text: "💰💰 経済効果報告：雇用と税収への貢献", type: "money", successRate: 0.6, trustGain: 10, alertMod: 0, costCoins: 4 },
+      { text: "👤👤👤 政府高官の推薦：省庁からのサポート", type: "connection", successRate: 0.85, trustGain: 20, alertMod: -1, costConnections: 3 },
+      { text: "完璧な書類提出：法令遵守を証明", type: "procedure", successRate: 0.7, trustGain: 12, alertMod: 0 },
+    ]
+  },
 };
 
 function nearestNegotiableEnemy() {
@@ -197,17 +222,61 @@ function executeNegotiationChoice(e) {
   const difficultyMod = (e.difficulty - 1) * 0.15;
   // Bonus for using resources
   const resourceBonus = (coinCost > 0 ? 0.05 : 0) + (connectionCost > 0 ? 0.08 : 0);
-  const finalRate = clamp(choice.successRate - alertPenalty - difficultyMod + resourceBonus, 0.1, 0.95);
+  // Career level bonus
+  const careerBonus = (playerGlobal.careerLevel >= 2 ? 0.05 : 0);
+  const finalRate = clamp(choice.successRate - alertPenalty - difficultyMod + resourceBonus + careerBonus, 0.1, 0.95);
   
   const success = Math.random() < finalRate;
   
   negoState.phase = "resolving";
   negoState.resolveTimer = 120;
   
+  // Update connection dictionary
+  updateConnectionDict(e.type, success);
+  
   if (success) {
     // Apply success effects
     player.trust = clamp(player.trust + choice.trustGain, 0, 100);
     game.alert = clamp(game.alert + choice.alertMod, 0, 3);
+    
+    // Add career exp
+    const expGain = e.isBoss ? 20 : 5;
+    addCareerExp(expGain);
+    
+    // Handle boss battles
+    if (e.isBoss) {
+      e.bossHP--;
+      if (e.bossHP <= 0) {
+        // Boss defeated!
+        e.stance = "allied";
+        e.hostile = false;
+        game.bossDefeated = true;
+        
+        // Create spectacular defeat effect
+        createDefeatEffect(e.x, e.y, "boss_defeat", "🎉 ボス撃破！");
+        
+        const bossMessages = {
+          boss_market: "大勝利！バイヤー長との大型契約成立！出世への道が開けた！",
+          boss_office: "完全勝利！CEOとの提携合意！君の評価は天井知らずだ！",
+          boss_port: "最終勝利！通関局長の承認完了！輸出成功だ！",
+        };
+        say(bossMessages[e.type] || "ボス撃破！契約成立！", 240);
+        negoState.resolveTimer = 180;
+      } else {
+        // Boss phase advance
+        e.bossPhase++;
+        const phaseMessages = [
+          "『まだだ...もう一度交渉しろ』",
+          "『なかなかやるな...最後の一押しを見せろ』",
+        ];
+        say(`交渉進行中！（残り ${e.bossHP} 回）${phaseMessages[Math.min(e.bossPhase-1, 1)]}`, 180);
+        
+        // Create phase effect
+        createDefeatEffect(e.x, e.y, "boss_phase", `Phase ${e.bossPhase}`);
+      }
+      negoState.lastResult = "success";
+      return;
+    }
     
     // Set enemy stance
     if (e.type === "buyer" || e.type === "executive") {
@@ -216,6 +285,9 @@ function executeNegotiationChoice(e) {
       e.stance = "neutral";
     }
     e.hostile = false;
+    
+    // Create defeat effect for regular enemies
+    createDefeatEffect(e.x, e.y, "negotiate_success", "契約成立！");
     
     // If this is a gatekeeper, open the gate
     if (e.isGateGuard) {
@@ -265,6 +337,65 @@ function openNearbyGate(e) {
           game.map[ny][nx] = 0; // Remove gate
         }
       }
+    }
+  }
+}
+
+// Update connection dictionary when meeting/negotiating with enemies
+function updateConnectionDict(type, negotiated) {
+  if (!playerGlobal.connectionDict[type]) {
+    playerGlobal.connectionDict[type] = {
+      met: true,
+      negotiated: false,
+      allied: false,
+      count: 0
+    };
+  }
+  
+  playerGlobal.connectionDict[type].met = true;
+  if (negotiated) {
+    playerGlobal.connectionDict[type].negotiated = true;
+    playerGlobal.connectionDict[type].allied = true;
+    playerGlobal.connectionDict[type].count++;
+  }
+}
+
+// Add career experience and check for level up
+function addCareerExp(amount) {
+  playerGlobal.careerExp += amount;
+  
+  // Check for level up
+  const nextLevel = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel + 1);
+  if (nextLevel && playerGlobal.careerExp >= nextLevel.expRequired) {
+    playerGlobal.careerLevel = nextLevel.level;
+    say(`🎉 昇進！${nextLevel.title}になった！ボーナス: ${nextLevel.bonus}`, 240);
+    
+    // Create promotion effect
+    createDefeatEffect(player.x, player.y - 50, "promotion", `${nextLevel.title}に昇進！`);
+  }
+}
+
+// Create visual defeat/success effect
+function createDefeatEffect(x, y, type, text) {
+  game.defeatEffects.push({
+    x: x,
+    y: y,
+    timer: 120, // 2 seconds at 60fps
+    type: type,
+    text: text,
+    startY: y,
+  });
+}
+
+// Update defeat effects (called from update.js)
+function updateDefeatEffects() {
+  for (let i = game.defeatEffects.length - 1; i >= 0; i--) {
+    const effect = game.defeatEffects[i];
+    effect.timer--;
+    effect.y -= 0.5; // Float upward
+    
+    if (effect.timer <= 0) {
+      game.defeatEffects.splice(i, 1);
     }
   }
 }
