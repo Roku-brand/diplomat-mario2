@@ -51,6 +51,22 @@ function update() {
 
   if (game.messageT > 0) game.messageT--;
 
+  // Stage selection screen
+  if (game.state === "select") {
+    // Navigation
+    if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
+      game.selectedStage = (game.selectedStage - 1 + STAGES.length) % STAGES.length;
+    }
+    if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
+      game.selectedStage = (game.selectedStage + 1) % STAGES.length;
+    }
+    // Select stage
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      loadStage(game.selectedStage);
+    }
+    return;
+  }
+
   if (game.state === "intro") {
     // Advance intro with Enter or E or Space
     if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
