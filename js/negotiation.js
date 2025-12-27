@@ -364,14 +364,28 @@ function updateConnectionDict(type, negotiated) {
 function addCareerExp(amount) {
   playerGlobal.careerExp += amount;
   
-  // Check for level up
-  const nextLevel = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel + 1);
-  if (nextLevel && playerGlobal.careerExp >= nextLevel.expRequired) {
-    playerGlobal.careerLevel = nextLevel.level;
-    say(`🎉 昇進！${nextLevel.title}になった！ボーナス: ${nextLevel.bonus}`, 240);
+  // Check for level up (use while loop to handle multiple level-ups)
+  let leveledUp = false;
+  let lastLevelTitle = "";
+  let lastLevelBonus = "";
+  
+  while (playerGlobal.careerLevel < CAREER_LEVELS.length) {
+    const nextLevel = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel + 1);
+    if (nextLevel && playerGlobal.careerExp >= nextLevel.expRequired) {
+      playerGlobal.careerLevel = nextLevel.level;
+      lastLevelTitle = nextLevel.title;
+      lastLevelBonus = nextLevel.bonus;
+      leveledUp = true;
+    } else {
+      break;
+    }
+  }
+  
+  if (leveledUp) {
+    say(`🎉 昇進！${lastLevelTitle}になった！ボーナス: ${lastLevelBonus}`, 240);
     
     // Create promotion effect
-    createDefeatEffect(player.x, player.y - 50, "promotion", `${nextLevel.title}に昇進！`);
+    createDefeatEffect(player.x, player.y - 50, "promotion", `${lastLevelTitle}に昇進！`);
   }
 }
 

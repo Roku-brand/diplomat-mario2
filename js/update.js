@@ -356,9 +356,10 @@ function update() {
   // breakable tiles: standing on them decreases durability
   updateBreakablesUnderPlayer();
 
-  // goal - requires boss to be defeated first
+  // goal - requires boss to be defeated first (if stage has a boss)
   if (goalTouch(player)) {
-    if (game.bossDefeated) {
+    const hasBoss = game.stage.bossSpawn !== undefined;
+    if (!hasBoss || game.bossDefeated) {
       game.state = "clear";
       say("契約成立！次のステージへ", 120);
     } else {
