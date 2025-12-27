@@ -173,7 +173,8 @@ const STAGES = [
     intro: [
       "商社マン・鈴木拓海。入社3年目、初の海外案件を任された。",
       "国際展示会で新規顧客を開拓し、契約を取り付けろ。",
-      "競合も狙っている。お金💰と人脈👤を集めて、有利な交渉を！"
+      "競合も狙っている。お金💰と人脈👤を集めて、有利な交渉を！",
+      "【ボス】海外バイヤー長との大型契約がゴールだ。"
     ],
     map: makeStageMap_Market(),
     collectibles: getCollectibles_Market(),
@@ -184,6 +185,7 @@ const STAGES = [
       { x: 63*TILE, y: 7*TILE, type:"buyer" },
       { x: 88*TILE, y: 8*TILE, type:"competitor" },
     ],
+    bossSpawn: { x: 102*TILE, y: 8*TILE, type:"boss_market" }, // ステージボス
     npcNotes: [
       "競合は『先行優位』を主張する。価格か独自性で勝負。",
       "バイヤーは『実績』と『コスト』を重視。具体的な数字を準備せよ。"
@@ -196,7 +198,8 @@ const STAGES = [
     intro: [
       "展示会での成功を受け、大企業との本格交渉が始まった。",
       "本社ビルで重役と直接対話。ここで失敗すれば全てが水の泡。",
-      "ブローカーの誘惑に注意。人脈を活用して信頼を勝ち取れ！"
+      "ブローカーの誘惑に注意。人脈を活用して信頼を勝ち取れ！",
+      "【ボス】CEOとの最終合意を取り付けろ。"
     ],
     map: makeStageMap_Office(),
     collectibles: getCollectibles_Office(),
@@ -207,6 +210,7 @@ const STAGES = [
       { x: 55*TILE, y: 7*TILE, type:"executive" },
       { x: 73*TILE, y: 7*TILE, type:"broker" },
     ],
+    bossSpawn: { x: 87*TILE, y: 7*TILE, type:"boss_office" }, // ステージボス
     npcNotes: [
       "ブローカーは手数料目当て。直接ルートの方が利益率が高い。",
       "重役は数字と論理で動く。感情論は逆効果。"
@@ -219,7 +223,8 @@ const STAGES = [
     intro: [
       "契約は成立した。だが、物流が止まれば意味がない。",
       "港湾で労働組合と政府官僚の壁が立ちはだかる。",
-      "お金だけでは解決しない。人脈と誠意で道を切り開け！"
+      "お金だけでは解決しない。人脈と誠意で道を切り開け！",
+      "【ボス】通関局長の最終承認を得て、輸出を完了させろ。"
     ],
     map: makeStageMap_Port(),
     collectibles: getCollectibles_Port(),
@@ -231,6 +236,7 @@ const STAGES = [
       { x: 71*TILE, y: 7*TILE, type:"gatekeeper" }, // 最終ゲート
       { x: 76*TILE, y: 8*TILE, type:"government" },
     ],
+    bossSpawn: { x: 82*TILE, y: 7*TILE, type:"boss_port" }, // ステージボス
     npcNotes: [
       "官僚は『手続き』と『書類』で動く。正規ルートを示せ。",
       "メディア記者は交渉不可。スキャンダルを避けてルート設計を。"

@@ -21,6 +21,12 @@ function draw() {
     return;
   }
   
+  // Handle connection dictionary
+  if (game.state === "dictionary") {
+    drawDictionaryOverlay();
+    return;
+  }
+  
   // Handle stage select screen before game.stage is set
   if (game.state === "select") {
     drawStageSelectOverlay();
@@ -46,6 +52,7 @@ function draw() {
   drawCollectibles(); // コインと人脈ポイントを描画
   drawEnemies(pal);
   drawPlayer(pal);
+  drawDefeatEffects(); // 敵撃退エフェクト
 
   ctx.restore();
 
@@ -123,6 +130,111 @@ function drawCollectibles() {
       const pulse = Math.sin(game.time * 0.1) * 0.3 + 0.5;
       ctx.fillStyle = `rgba(100, 180, 255, ${pulse})`;
       ctx.fillRect(x, y + 2, collectW, collectH);
+    }
+  }
+}
+
+// Draw defeat/success effects when enemies are negotiated
+function drawDefeatEffects() {
+  for (const effect of game.defeatEffects) {
+    const alpha = clamp(effect.timer / 60, 0, 1);
+    const scale = 1 + (1 - effect.timer / 120) * 0.5;
+    
+    const x = effect.x;
+    const y = effect.y;
+    
+    if (effect.type === "boss_defeat") {
+      // Spectacular boss defeat effect
+      // Expanding rings
+      for (let i = 0; i < 3; i++) {
+        const ringProgress = ((120 - effect.timer) + i * 20) / 60;
+        const ringRadius = ringProgress * 80;
+        const ringAlpha = Math.max(0, alpha - ringProgress * 0.3);
+        
+        ctx.strokeStyle = `rgba(255, 215, 0, ${ringAlpha})`;
+        ctx.lineWidth = 4 - ringProgress * 2;
+        ctx.beginPath();
+        ctx.arc(x + 20, y + 20, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      // Floating stars
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + game.time * 0.05;
+        const dist = 40 + Math.sin(game.time * 0.1 + i) * 20;
+        const sx = x + 20 + Math.cos(angle) * dist;
+        const sy = y + 20 + Math.sin(angle) * dist - (120 - effect.timer) * 0.5;
+        
+        ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
+        ctx.font = "16px sans-serif";
+        ctx.fillText("⭐", sx, sy);
+      }
+      
+      // Text
+      ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+      ctx.font = `bold ${20 * scale}px system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.fillText(effect.text, x - 40, y - 30);
+      
+    } else if (effect.type === "boss_phase") {
+      // Phase transition effect
+      ctx.fillStyle = `rgba(100, 200, 255, ${alpha})`;
+      ctx.font = `bold ${16 * scale}px system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.fillText(effect.text, x - 20, y - 20);
+      
+      // Lightning bolts
+      for (let i = 0; i < 4; i++) {
+        const bx = x + Math.sin(game.time * 0.2 + i * 1.5) * 30;
+        const by = y + Math.cos(game.time * 0.3 + i) * 20;
+        ctx.fillStyle = `rgba(200, 220, 255, ${alpha * 0.7})`;
+        ctx.font = "14px sans-serif";
+        ctx.fillText("⚡", bx, by);
+      }
+      
+    } else if (effect.type === "negotiate_success") {
+      // Regular negotiation success effect
+      // Handshake icon floating up
+      ctx.fillStyle = `rgba(34, 197, 94, ${alpha})`;
+      ctx.font = `${20 * scale}px sans-serif`;
+      ctx.fillText("🤝", x, y);
+      
+      // Sparkles
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2 + game.time * 0.1;
+        const dist = 25 + (120 - effect.timer) * 0.3;
+        const sx = x + 10 + Math.cos(angle) * dist;
+        const sy = y + Math.sin(angle) * dist;
+        
+        ctx.fillStyle = `rgba(255, 255, 200, ${alpha * 0.7})`;
+        ctx.font = "12px sans-serif";
+        ctx.fillText("✨", sx, sy);
+      }
+      
+      // Text
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.font = `bold 14px system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.fillText(effect.text, x - 20, y - 25);
+      
+    } else if (effect.type === "promotion") {
+      // Career promotion effect
+      // Rising arrow and stars
+      ctx.fillStyle = `rgba(255, 180, 0, ${alpha})`;
+      ctx.font = `${24 * scale}px sans-serif`;
+      ctx.fillText("📈", x, y);
+      
+      // Confetti
+      for (let i = 0; i < 6; i++) {
+        const confettiX = x + Math.sin(game.time * 0.15 + i * 2) * 50;
+        const confettiY = y - (120 - effect.timer) * 0.8 + Math.sin(i * 3) * 30;
+        const confettiColors = ["🎊", "🎉", "⭐"];
+        
+        ctx.font = "14px sans-serif";
+        ctx.fillText(confettiColors[i % 3], confettiX, confettiY);
+      }
+      
+      // Text
+      ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+      ctx.font = `bold 18px system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.fillText(effect.text, x - 50, y - 35);
     }
   }
 }
@@ -774,6 +886,143 @@ function drawEnemyByType(e) {
       ctx.fillText("🤝", x + w/2 - 6, y - 4);
     }
 
+  } else if (e.type === "boss_market") {
+    // Stage 1 Boss: 海外バイヤー長 - larger, more impressive
+    // Draw boss glow aura
+    if (e.stance !== "allied") {
+      const pulse = Math.sin(game.time * 0.08) * 0.2 + 0.4;
+      ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
+      ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
+    }
+    
+    // Expensive suit (dark navy with gold trim)
+    ctx.fillStyle = "#0a1a3a";
+    ctx.fillRect(x + 3, y + 14, w - 6, h - 22);
+    // Gold trim
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(x + 3, y + 14, 3, h - 22);
+    ctx.fillRect(x + w - 6, y + 14, 3, h - 22);
+    // Golden tie
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(x + w/2 - 3, y + 16, 6, 16);
+    // White shirt
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + w/2 - 5, y + 14, 10, 8);
+    // Pants
+    ctx.fillStyle = "#0a0a1a";
+    ctx.fillRect(x + 5, y + h - 10, 10, 10);
+    ctx.fillRect(x + w - 15, y + h - 10, 10, 10);
+    // Head (distinguished, gray temples)
+    ctx.fillStyle = "#4a4a5a";
+    ctx.fillRect(x + 4, y - 2, w - 8, 10);
+    ctx.fillStyle = "#fcd9b6";
+    ctx.fillRect(x + 6, y + 6, w - 12, 12);
+    // Distinctive features
+    ctx.fillStyle = "#2a2a3a";
+    ctx.fillRect(x + 8, y + 10, 3, 3);
+    ctx.fillRect(x + w - 11, y + 10, 3, 3);
+    // Crown/status indicator
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("👑", x + w/2 - 6, y - 8);
+    // Boss HP indicator
+    if (e.bossHP !== undefined && e.stance !== "allied") {
+      drawBossHPBar(x, y - 20, w, e.bossHP, 3);
+    }
+    
+  } else if (e.type === "boss_office") {
+    // Stage 2 Boss: CEO - commanding presence
+    if (e.stance !== "allied") {
+      const pulse = Math.sin(game.time * 0.1) * 0.2 + 0.5;
+      ctx.fillStyle = `rgba(100, 150, 255, ${pulse})`;
+      ctx.fillRect(x - 8, y - 8, w + 16, h + 16);
+    }
+    
+    // Premium black suit
+    ctx.fillStyle = "#050510";
+    ctx.fillRect(x + 2, y + 14, w - 4, h - 22);
+    // Platinum cufflinks
+    ctx.fillStyle = "#c0c0c0";
+    ctx.fillRect(x + 2, y + 24, 4, 3);
+    ctx.fillRect(x + w - 6, y + 24, 4, 3);
+    // Silk tie (deep blue)
+    ctx.fillStyle = "#1a3a6a";
+    ctx.fillRect(x + w/2 - 3, y + 16, 6, 18);
+    // Crisp white shirt
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + w/2 - 6, y + 14, 12, 8);
+    // Premium pants
+    ctx.fillStyle = "#020208";
+    ctx.fillRect(x + 4, y + h - 12, 11, 12);
+    ctx.fillRect(x + w - 15, y + h - 12, 11, 12);
+    // Head (powerful presence)
+    ctx.fillStyle = "#3a3a4a";
+    ctx.fillRect(x + 3, y - 4, w - 6, 12);
+    ctx.fillStyle = "#fcd9b6";
+    ctx.fillRect(x + 5, y + 6, w - 10, 14);
+    // Stern eyes
+    ctx.fillStyle = "#1a1a2a";
+    ctx.fillRect(x + 8, y + 10, 4, 3);
+    ctx.fillRect(x + w - 12, y + 10, 4, 3);
+    // CEO badge
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "14px sans-serif";
+    ctx.fillText("🏆", x + w/2 - 7, y - 10);
+    // Boss HP indicator
+    if (e.bossHP !== undefined && e.stance !== "allied") {
+      drawBossHPBar(x, y - 25, w, e.bossHP, 3);
+    }
+    
+  } else if (e.type === "boss_port") {
+    // Stage 3 Boss: 通関局長 - authoritative government figure
+    if (e.stance !== "allied") {
+      const pulse = Math.sin(game.time * 0.12) * 0.25 + 0.45;
+      ctx.fillStyle = `rgba(100, 200, 150, ${pulse})`;
+      ctx.fillRect(x - 10, y - 10, w + 20, h + 20);
+    }
+    
+    // Official uniform (dark green)
+    ctx.fillStyle = "#1a3a2a";
+    ctx.fillRect(x + 2, y + 14, w - 4, h - 22);
+    // Official badges
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(x + 5, y + 18, 6, 6);
+    ctx.fillRect(x + 5, y + 26, 6, 6);
+    ctx.fillRect(x + w - 11, y + 18, 6, 6);
+    // Official epaulettes
+    ctx.fillStyle = "#ffd700";
+    ctx.fillRect(x + 2, y + 14, 8, 4);
+    ctx.fillRect(x + w - 10, y + 14, 8, 4);
+    // White shirt
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillRect(x + w/2 - 5, y + 14, 10, 10);
+    // Official tie
+    ctx.fillStyle = "#2a2a4a";
+    ctx.fillRect(x + w/2 - 2, y + 16, 4, 14);
+    // Pants
+    ctx.fillStyle = "#0a1a1a";
+    ctx.fillRect(x + 4, y + h - 12, 12, 12);
+    ctx.fillRect(x + w - 16, y + h - 12, 12, 12);
+    // Head (official cap)
+    ctx.fillStyle = "#1a2a2a";
+    ctx.fillRect(x + 2, y - 8, w - 4, 10);
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(x + w/2 - 6, y - 6, 12, 4);
+    ctx.fillStyle = "#fcd9b6";
+    ctx.fillRect(x + 5, y + 4, w - 10, 14);
+    // Authoritative eyes
+    ctx.fillStyle = "#1a1a2a";
+    ctx.fillRect(x + 9, y + 8, 4, 3);
+    ctx.fillRect(x + w - 13, y + 8, 4, 3);
+    // Official seal
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "14px sans-serif";
+    ctx.fillText("🏛️", x + w/2 - 7, y - 16);
+    // Boss HP indicator
+    if (e.bossHP !== undefined && e.stance !== "allied") {
+      drawBossHPBar(x, y - 30, w, e.bossHP, 3);
+    }
+
   } else {
     // Default fallback
     let c = "#ef4444";
@@ -783,6 +1032,33 @@ function drawEnemyByType(e) {
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(x + 5, y + 8, w - 10, 8);
+  }
+}
+
+// Draw boss HP bar
+function drawBossHPBar(x, y, w, currentHP, maxHP) {
+  const barW = w + 10;
+  const barH = 8;
+  const barX = x - 5;
+  
+  // Background
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  ctx.fillRect(barX, y, barW, barH);
+  
+  // Border
+  ctx.strokeStyle = "#ffd700";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, y, barW, barH);
+  
+  // HP segments
+  const segmentW = (barW - 4) / maxHP;
+  for (let i = 0; i < maxHP; i++) {
+    if (i < currentHP) {
+      ctx.fillStyle = "#ef4444";
+    } else {
+      ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
+    }
+    ctx.fillRect(barX + 2 + i * segmentW, y + 2, segmentW - 2, barH - 4);
   }
 }
 
@@ -796,6 +1072,9 @@ function nameOfEnemy(type) {
     government: "官僚",
     media: "記者",
     gatekeeper: "受付",
+    boss_market: "【ボス】バイヤー長",
+    boss_office: "【ボス】CEO",
+    boss_port: "【ボス】通関局長",
   };
   return map[type] || type;
 }
@@ -812,7 +1091,7 @@ function drawHUD(pal) {
   ctx.fillText(game.stage.title, 12, 20);
 
   // Trust/評判 bar
-  const trustW = 180, trustH = 10;
+  const trustW = 160, trustH = 10;
   const tx = 12, ty = 30;
   ctx.fillStyle = "rgba(255,255,255,0.18)";
   ctx.fillRect(tx, ty, trustW, trustH);
@@ -826,19 +1105,36 @@ function drawHUD(pal) {
 
   // HP
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`❤️ ${player.hp}`, 280, 38);
+  ctx.fillText(`❤️ ${player.hp}`, 260, 38);
   
   // 警戒レベル
-  ctx.fillText(`⚠️ 警戒: ${game.alert}`, 330, 38);
+  ctx.fillText(`⚠️ ${game.alert}`, 310, 38);
   
   // お金（コイン）💰
   ctx.fillStyle = "#ffd700";
   ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`💰 ${player.coins}`, 440, 38);
+  ctx.fillText(`💰 ${player.coins}`, 360, 38);
   
   // 人脈（コネクション）👤
   ctx.fillStyle = "#4a90d9";
-  ctx.fillText(`👤 ${player.connections}`, 500, 38);
+  ctx.fillText(`👤 ${player.connections}`, 410, 38);
+  
+  // Career level indicator
+  const careerInfo = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel);
+  ctx.fillStyle = "#ffd700";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`🏆 ${careerInfo.title}`, 470, 38);
+  
+  // Boss status indicator
+  if (!game.bossDefeated) {
+    ctx.fillStyle = "#ef4444";
+    ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("👑 ボス未撃破", 560, 38);
+  } else {
+    ctx.fillStyle = "#22c55e";
+    ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("✅ ボス撃破済", 560, 38);
+  }
 
   // message
   if (game.messageT > 0 && game.message) {
@@ -1031,19 +1327,20 @@ function drawTopMenuOverlay() {
   ctx.fillStyle = "rgba(255, 200, 100, 0.7)";
   ctx.fillText("〜 街を歩いて、交渉の舞台へ 〜", 60, 90);
   
-  // Player global stats
+  // Player global stats with career level
   ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`💰 貯金: ${playerGlobal.savings}　👤 人脈蓄積: ${playerGlobal.networkTotal}　👔 スタイル: ${playerGlobal.outfit + 1}`, W - 350, 30);
+  const careerInfo = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel);
+  ctx.fillText(`💰 貯金: ${playerGlobal.savings}　👤 人脈: ${playerGlobal.networkTotal}　🏆 ${careerInfo.title}（Lv.${playerGlobal.careerLevel}）`, W - 420, 30);
   
-  // Define the 3 locations
+  // Define the 4 locations
   const locations = [
     { 
       name: "① 本社", 
       subtitle: "設定・着せ替え",
       desc: "キャラクターのスタイルを変更",
       icon: "🏢",
-      x: 80,
+      x: 30,
       color: "#4a6a9a"
     },
     { 
@@ -1051,22 +1348,30 @@ function drawTopMenuOverlay() {
       subtitle: "貯金・人脈蓄積",
       desc: "資金を管理し、人脈を広げる",
       icon: "🏦",
-      x: 340,
+      x: 250,
       color: "#5a7a6a"
     },
     { 
-      name: "③ 交通センター", 
+      name: "③ 人脈図鑑", 
+      subtitle: "コレクション",
+      desc: "出会った人物を確認",
+      icon: "📇",
+      x: 470,
+      color: "#6a5a8a"
+    },
+    { 
+      name: "④ 交通センター", 
       subtitle: "ステージ選択",
       desc: "各地の商談現場へ出発",
       icon: "🚉",
-      x: 600,
+      x: 690,
       color: "#7a5a6a"
     }
   ];
   
   // Draw location cards
   const cardY = 160;
-  const cardW = 220;
+  const cardW = 200;
   const cardH = 280;
   
   for (let i = 0; i < locations.length; i++) {
@@ -1156,7 +1461,7 @@ function drawTopMenuOverlay() {
   }
   
   // Draw player character walking animation at bottom
-  const walkX = 50 + game.topMenuSelection * 260 + Math.sin(game.time * 0.05) * 5;
+  const walkX = 50 + game.topMenuSelection * 220 + Math.sin(game.time * 0.05) * 5;
   const walkY = H - 50;
   drawMiniPlayer(walkX, walkY);
   
@@ -1334,6 +1639,151 @@ function drawPlayerPreview(x, y, outfit) {
   ctx.fillRect(x + 10*scale, y - 20*scale, 10*scale, 8*scale);
   ctx.fillStyle = "#d4af37";
   ctx.fillRect(x + 12*scale, y - 18*scale, 6*scale, 2*scale);
+}
+
+// Connection dictionary overlay (人脈図鑑)
+function drawDictionaryOverlay() {
+  // Background
+  ctx.fillStyle = "#1a1a2a";
+  ctx.fillRect(0, 0, W, H);
+  
+  // Book-style pattern
+  ctx.fillStyle = "#252535";
+  ctx.fillRect(40, 80, W - 80, H - 140);
+  ctx.strokeStyle = "#d4af37";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(40, 80, W - 80, H - 140);
+  
+  // Binding decoration
+  ctx.fillStyle = "#8b4513";
+  ctx.fillRect(60, 80, 20, H - 140);
+  
+  // Title
+  ctx.fillStyle = "rgba(255, 220, 150, 0.95)";
+  ctx.font = "bold 28px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("📇 人脈図鑑 - Connection Dictionary", 100, 50);
+  
+  // Stats
+  const totalTypes = Object.keys(CONNECTION_TYPES).length;
+  const metCount = Object.keys(playerGlobal.connectionDict).filter(k => playerGlobal.connectionDict[k]?.met).length;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`収集率: ${metCount}/${totalTypes} (${Math.round(metCount/totalTypes*100)}%)`, W - 200, 50);
+  
+  // Get connection types for current page
+  const connectionTypes = Object.keys(CONNECTION_TYPES);
+  const itemsPerPage = 4;
+  const totalPages = Math.ceil(connectionTypes.length / itemsPerPage);
+  const startIdx = game.dictionaryPage * itemsPerPage;
+  const pageTypes = connectionTypes.slice(startIdx, startIdx + itemsPerPage);
+  
+  // Draw entries
+  const entryY = 110;
+  const entryH = 95;
+  
+  for (let i = 0; i < pageTypes.length; i++) {
+    const type = pageTypes[i];
+    const info = CONNECTION_TYPES[type];
+    const playerData = playerGlobal.connectionDict[type];
+    const met = playerData?.met || false;
+    const negotiated = playerData?.negotiated || false;
+    const count = playerData?.count || 0;
+    
+    const y = entryY + i * entryH;
+    
+    // Entry background
+    if (met) {
+      ctx.fillStyle = "rgba(100, 150, 200, 0.2)";
+    } else {
+      ctx.fillStyle = "rgba(50, 50, 60, 0.5)";
+    }
+    ctx.fillRect(100, y, W - 180, entryH - 10);
+    
+    // Category badge
+    ctx.fillStyle = getBadgeColor(info.category);
+    ctx.fillRect(105, y + 5, 60, 20);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 10px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(info.category, 110, y + 18);
+    
+    // Name
+    if (met) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(info.name, 180, y + 22);
+      
+      // Description
+      ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+      ctx.font = "13px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(info.description, 180, y + 45);
+      
+      // Stats
+      ctx.fillStyle = negotiated ? "#22c55e" : "#eab308";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+      const status = negotiated ? "✅ 交渉成功" : "📍 出会った";
+      ctx.fillText(`${status}　交渉回数: ${count}回`, 180, y + 70);
+      
+      // Icon for type
+      ctx.font = "30px sans-serif";
+      const icons = {
+        competitor: "💼", buyer: "🛒", broker: "🤝", executive: "👔",
+        union: "🔧", government: "🏛️", media: "📷", gatekeeper: "🚪",
+        boss_market: "👑", boss_office: "🏆", boss_port: "🏛️"
+      };
+      ctx.fillText(icons[type] || "👤", W - 120, y + 50);
+      
+    } else {
+      // Unknown entry
+      ctx.fillStyle = "rgba(100, 100, 100, 0.7)";
+      ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("？？？", 180, y + 22);
+      
+      ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
+      ctx.font = "13px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("まだ出会っていません。ステージをプレイして出会いましょう。", 180, y + 45);
+      
+      ctx.font = "30px sans-serif";
+      ctx.fillText("❓", W - 120, y + 50);
+    }
+  }
+  
+  // Page indicator
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.font = "16px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`ページ ${game.dictionaryPage + 1} / ${totalPages}`, W/2 - 40, H - 60);
+  
+  // Navigation arrows
+  if (game.dictionaryPage > 0) {
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("◀", 100, H - 55);
+  }
+  if (game.dictionaryPage < totalPages - 1) {
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("▶", W - 120, H - 55);
+  }
+  
+  // Instructions
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("←→: ページ移動　Enter / Space / Esc: 戻る", 100, H - 25);
+}
+
+// Helper function for category badge colors
+function getBadgeColor(category) {
+  const colors = {
+    "ビジネス": "#4a6a9a",
+    "顧客": "#5a8a6a",
+    "仲介": "#8a7a5a",
+    "VIP": "#9a5a6a",
+    "労働": "#6a5a8a",
+    "行政": "#5a6a8a",
+    "メディア": "#8a5a5a",
+    "窓口": "#6a7a6a",
+    "ボス": "#d4af37",
+  };
+  return colors[category] || "#555";
 }
 
 // Branch office menu overlay

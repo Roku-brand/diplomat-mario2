@@ -15,6 +15,9 @@ function loadStage(idx) {
   game.alert = 0;
   game.message = "";
   game.messageT = 0;
+  game.bossDefeated = false;
+  game.bossPhase = 0;
+  game.defeatEffects = [];
 
   // reset player
   player.x = 2*TILE; player.y = 6*TILE;
@@ -27,8 +30,12 @@ function loadStage(idx) {
   player.negotiating = null;
   player.negoProgress = 0;
   player.canDoubleJump = true;
-  player.coins = 0; // リセット
-  player.connections = 0; // リセット
+  
+  // Apply career level bonuses
+  player.coins = 0;
+  player.connections = 0;
+  if (playerGlobal.careerLevel >= 3) player.coins += 2; // 課長ボーナス
+  if (playerGlobal.careerLevel >= 4) player.connections += 1; // 部長ボーナス
 
   // enemies
   enemies = [];
@@ -37,6 +44,15 @@ function loadStage(idx) {
     e.x = s.x; e.y = s.y;
     e.originX = e.x;
     enemies.push(e);
+  }
+  
+  // Add boss if stage has one
+  if (game.stage.bossSpawn) {
+    const boss = enemyTemplate(game.stage.bossSpawn.type);
+    boss.x = game.stage.bossSpawn.x;
+    boss.y = game.stage.bossSpawn.y;
+    boss.originX = boss.x;
+    enemies.push(boss);
   }
 
   // collectibles (コインと人脈ポイント)
@@ -65,17 +81,17 @@ function update() {
   if (game.state === "topmenu") {
     // Navigation (horizontal layout - left/right)
     if (pressed("ArrowLeft") || pressed("a") || pressed("A")) {
-      game.topMenuSelection = (game.topMenuSelection - 1 + 3) % 3;
+      game.topMenuSelection = (game.topMenuSelection - 1 + 4) % 4;
     }
     if (pressed("ArrowRight") || pressed("d") || pressed("D")) {
-      game.topMenuSelection = (game.topMenuSelection + 1) % 3;
+      game.topMenuSelection = (game.topMenuSelection + 1) % 4;
     }
     // Also support up/down for accessibility
     if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
-      game.topMenuSelection = (game.topMenuSelection - 1 + 3) % 3;
+      game.topMenuSelection = (game.topMenuSelection - 1 + 4) % 4;
     }
     if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
-      game.topMenuSelection = (game.topMenuSelection + 1) % 3;
+      game.topMenuSelection = (game.topMenuSelection + 1) % 4;
     }
     // Select location
     if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
@@ -85,6 +101,9 @@ function update() {
       } else if (game.topMenuSelection === 1) {
         game.state = "branch"; // 支社
         game.branchSelection = 0;
+      } else if (game.topMenuSelection === 2) {
+        game.state = "dictionary"; // 人脈図鑑
+        game.dictionaryPage = 0;
       } else {
         game.state = "select"; // 交通センター（ステージ選択）
       }
@@ -180,6 +199,23 @@ function update() {
     return;
   }
 
+  // Connection dictionary screen (人脈図鑑)
+  if (game.state === "dictionary") {
+    const connectionTypes = Object.keys(CONNECTION_TYPES);
+    const totalPages = Math.ceil(connectionTypes.length / 4); // 4 entries per page
+    
+    if (pressed("ArrowLeft") || pressed("a") || pressed("A")) {
+      game.dictionaryPage = (game.dictionaryPage - 1 + totalPages) % totalPages;
+    }
+    if (pressed("ArrowRight") || pressed("d") || pressed("D")) {
+      game.dictionaryPage = (game.dictionaryPage + 1) % totalPages;
+    }
+    if (pressed("Escape") || pressed("Backspace") || pressed("Enter") || pressed(" ")) {
+      game.state = "topmenu";
+    }
+    return;
+  }
+
   // Stage selection screen
   if (game.state === "select") {
     // Navigation
@@ -225,13 +261,23 @@ function update() {
     playerGlobal.savings += stageReward + bonusCoins;
     playerGlobal.networkTotal += bonusConnections;
     
+    // Mark stage as cleared
+    playerGlobal.stagesCleared[game.stageIndex] = true;
+    
+    // Add career exp for clearing stage
+    const stageExp = 10 + game.stageIndex * 5;
+    addCareerExp(stageExp);
+    
+    // Increment total contracts
+    playerGlobal.totalContracts++;
+    
     if (game.stageIndex < STAGES.length - 1) {
       loadStage(game.stageIndex + 1);
     } else {
       // end - return to top menu
       game.state = "topmenu";
       game.topMenuSelection = 0;
-      say(`全ステージクリア！貯金+${stageReward + bonusCoins}　人脈+${bonusConnections}`, 300);
+      say(`全ステージクリア！貯金+${stageReward + bonusCoins}　人脈+${bonusConnections}　🎉ゲームクリア！`, 300);
     }
     return;
   }
@@ -310,14 +356,22 @@ function update() {
   // breakable tiles: standing on them decreases durability
   updateBreakablesUnderPlayer();
 
-  // goal
+  // goal - requires boss to be defeated first (if stage has a boss)
   if (goalTouch(player)) {
-    game.state = "clear";
-    say("契約成立！次のステージへ", 120);
+    const hasBoss = game.stage.bossSpawn !== undefined;
+    if (!hasBoss || game.bossDefeated) {
+      game.state = "clear";
+      say("契約成立！次のステージへ", 120);
+    } else {
+      say("ボスを倒さないと進めない！ステージボスを見つけて交渉しろ！", 120);
+    }
   }
 
   // enemy updates and interactions
   updateEnemies();
+  
+  // Update defeat effects
+  updateDefeatEffects();
 
   // fail conditions
   if (player.y > game.mapH*TILE + 220) {
