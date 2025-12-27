@@ -22,7 +22,7 @@
 </div>
 
 <div class="hint">
-  <b>操作</b>：←→/AD 移動　Space/W/↑ ジャンプ　<b>E 長押し</b> 交渉　Shift ダッシュ　R リトライ<br>
+  <b>操作</b>：←→/AD 移動　Space/W/↑ ジャンプ（空中で再入力：<b>２段ジャンプ</b>）　<b>E 長押し</b> 交渉　Shift ダッシュ　R リトライ<br>
   <b>勝ち方</b>：敵を倒すのではなく「交渉して通す」。交渉失敗は警戒を上げる（難化）。
 </div>
 
@@ -276,6 +276,7 @@
     dashCD: 0,
     negotiating: null, // enemy ref when negotiating
     negoProgress: 0,
+    canDoubleJump: true, // double jump ability flag
   };
 
   function enemyTemplate(type) {
@@ -369,6 +370,7 @@
     player.dashCD = 0;
     player.negotiating = null;
     player.negoProgress = 0;
+    player.canDoubleJump = true; // reset double jump ability
 
     // enemies
     enemies = [];
@@ -655,9 +657,22 @@
     else if (right && !left) { player.vx = moveSpeed; player.face = 1; }
     else player.vx = lerp(player.vx, 0, 0.4);
 
-    if (jump && player.onGround) {
-      player.vy = -13.2;
-      player.onGround = false;
+    // Jump and Double Jump logic
+    if (jump) {
+      if (player.onGround) {
+        // First jump from ground
+        player.vy = -13.2;
+        player.onGround = false;
+      } else if (player.canDoubleJump) {
+        // Double jump in air
+        player.vy = -12.0; // slightly weaker than first jump
+        player.canDoubleJump = false;
+      }
+    }
+
+    // Reset double jump ability when landing (handles both: after double-jump and after falling)
+    if (player.onGround) {
+      player.canDoubleJump = true;
     }
 
     // gravity
