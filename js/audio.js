@@ -171,8 +171,11 @@ function playNoise(duration, volume = 0.2) {
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   
+  // Pre-calculate decay multiplier for efficiency
+  const invBufferSize = 1 / bufferSize;
   for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    const decay = 1 - i * invBufferSize;
+    data[i] = (Math.random() * 2 - 1) * decay * decay;
   }
   
   const source = audioCtx.createBufferSource();
@@ -376,6 +379,6 @@ function playBossMusic() {
 }
 
 // Initialize audio on first user interaction
-document.addEventListener("keydown", initAudio, { once: false });
-document.addEventListener("click", initAudio, { once: false });
-document.addEventListener("touchstart", initAudio, { once: false });
+document.addEventListener("keydown", initAudio, { once: true });
+document.addEventListener("click", initAudio, { once: true });
+document.addEventListener("touchstart", initAudio, { once: true });

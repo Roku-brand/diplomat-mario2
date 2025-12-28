@@ -2001,6 +2001,7 @@ function drawTutorialOverlay() {
   
   const step = game.tutorialStep;
   const tut = tutorials[step];
+  const lastTutorialStep = tutorials.length - 1;
   
   // Card background
   const cardW = 500;
@@ -2050,7 +2051,7 @@ function drawTutorialOverlay() {
   // Navigation hint
   ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-  const navText = step < tutorials.length - 1 
+  const navText = step < lastTutorialStep 
     ? "Enter / Space で次へ　|　Esc でスキップ" 
     : "Enter / Space でゲーム開始！";
   ctx.fillText(navText, cardX + cardW / 2 - 100, cardY + cardH - 15);

@@ -357,7 +357,7 @@ function update() {
   // gravity
   player.vy = clamp(player.vy + GRAVITY, -999, MAX_FALL);
 
-  // negotiation start/toggle (press E to start, press again or move away to cancel)
+  // negotiation start/toggle (press E to start, Esc to cancel, or move away)
   const eNear = nearestNegotiableEnemy();
   const eKeyPressed = pressed("e") || pressed("E");
   
