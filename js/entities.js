@@ -24,6 +24,9 @@ const game = {
   bossPhase: 0, // boss battle phase
   bossDefeated: false, // whether current boss is defeated
   defeatEffects: [], // visual effects for enemy defeats { x, y, timer, type, text }
+  tutorialShown: false, // has the tutorial been shown
+  tutorialStep: 0, // current tutorial step (0-4)
+  showTutorial: false, // currently showing tutorial overlay
 };
 
 // Global player stats (persistent across stages)
