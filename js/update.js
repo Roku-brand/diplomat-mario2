@@ -82,19 +82,24 @@ function update() {
     // Navigation (horizontal layout - left/right)
     if (pressed("ArrowLeft") || pressed("a") || pressed("A")) {
       game.topMenuSelection = (game.topMenuSelection - 1 + 4) % 4;
+      playSFX("select");
     }
     if (pressed("ArrowRight") || pressed("d") || pressed("D")) {
       game.topMenuSelection = (game.topMenuSelection + 1) % 4;
+      playSFX("select");
     }
     // Also support up/down for accessibility
     if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
       game.topMenuSelection = (game.topMenuSelection - 1 + 4) % 4;
+      playSFX("select");
     }
     if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
       game.topMenuSelection = (game.topMenuSelection + 1) % 4;
+      playSFX("select");
     }
     // Select location
     if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      playSFX("confirm");
       if (game.topMenuSelection === 0) {
         game.state = "headquarters"; // 本社
         game.headquartersSelection = 0;
@@ -242,6 +247,11 @@ function update() {
       game.introLine++;
       if (game.introLine >= game.stage.intro.length) {
         game.state = "play";
+        // Show tutorial on first stage if not already shown
+        if (!game.tutorialShown && game.stageIndex === 0) {
+          game.showTutorial = true;
+          game.tutorialStep = 0;
+        }
         say("交渉開始！お金💰と人脈👤を集めて契約を取れ！", 150);
       }
     }
@@ -250,6 +260,23 @@ function update() {
 
   if (game.state === "gameover") {
     if (pressed("r") || pressed("R")) loadStage(game.stageIndex);
+    return;
+  }
+
+  // Handle tutorial overlay
+  if (game.showTutorial) {
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      game.tutorialStep++;
+      playSFX("select");
+      if (game.tutorialStep >= 5) {
+        game.showTutorial = false;
+        game.tutorialShown = true;
+      }
+    }
+    if (pressed("Escape") || pressed("Backspace")) {
+      game.showTutorial = false;
+      game.tutorialShown = true;
+    }
     return;
   }
 
@@ -298,6 +325,7 @@ function update() {
   if (dashHold && player.dashCD === 0) {
     player.dashT = 14;
     player.dashCD = 10; // shorter cooldown for continuous dashing while holding
+    playSFX("dash");
   }
 
   const moveSpeed = player.dashT > 0 ? 6.2 : 3.2;
@@ -312,10 +340,12 @@ function update() {
       // First jump from ground
       player.vy = -13.2;
       player.onGround = false;
+      playSFX("jump");
     } else if (player.canDoubleJump) {
       // Double jump in air
       player.vy = -12.0; // slightly weaker than first jump
       player.canDoubleJump = false;
+      playSFX("doubleJump");
     }
   }
 
@@ -327,14 +357,23 @@ function update() {
   // gravity
   player.vy = clamp(player.vy + GRAVITY, -999, MAX_FALL);
 
-  // negotiation start/hold
+  // negotiation start/toggle (press E to start, Esc to cancel, or move away)
   const eNear = nearestNegotiableEnemy();
-  const eKeyHeld = isDown("e") || isDown("E");
-  if (eKeyHeld) {
-    if (!player.negotiating && eNear) startNegotiation(eNear);
-    if (player.negotiating) negotiationTick();
-  } else {
-    if (player.negotiating) stopNegotiation();
+  const eKeyPressed = pressed("e") || pressed("E");
+  
+  if (eKeyPressed && !player.negotiating && eNear) {
+    // Start negotiation when pressing E near a negotiable enemy
+    startNegotiation(eNear);
+  } else if (player.negotiating) {
+    // Continue negotiation tick (handles choice selection, etc.)
+    negotiationTick();
+    
+    // Cancel negotiation if player moves too far (handled inside negotiationTick)
+    // or if player presses Escape
+    if (pressed("Escape") || pressed("Backspace")) {
+      stopNegotiation();
+      say("交渉を中断した。", 80);
+    }
   }
 
   // apply movement/collision
@@ -361,6 +400,7 @@ function update() {
     const hasBoss = game.stage.bossSpawn !== undefined;
     if (!hasBoss || game.bossDefeated) {
       game.state = "clear";
+      playSFX("stageClear");
       say("契約成立！次のステージへ", 120);
     } else {
       say("ボスを倒さないと進めない！ステージボスを見つけて交渉しろ！", 120);
@@ -466,6 +506,9 @@ function updateEnemies() {
       // damage
       player.hp -= e.contactDamage;
       player.trust = clamp(player.trust - 7, 0, 100);
+      playSFX("damage");
+      triggerScreenShake(8, 15);
+      createParticles(player.x + player.w/2, player.y + player.h/2, "damage", 12);
       say("衝突！商談が台無しに（HP -1 / 評判 -7）", 120);
       // knockback
       player.vx = -e.dir * 5.2;
@@ -488,9 +531,13 @@ function updateCollectibles() {
       c.collected = true;
       if (c.type === "coin") {
         player.coins++;
+        playSFX("coin");
+        createParticles(c.x + collectW/2, c.y + collectH/2, "coin", 8);
         say("💰 お金+1！（交渉材料として使える）", 80);
       } else if (c.type === "connection") {
         player.connections++;
+        playSFX("connection");
+        createParticles(c.x + collectW/2, c.y + collectH/2, "connection", 10);
         say("👤 人脈+1！（有力なコネクション獲得）", 80);
       }
     }
@@ -499,5 +546,6 @@ function updateCollectibles() {
 
 function die(reason) {
   game.state = "gameover";
+  playSFX("gameOver");
   say(reason + "　Rで再開。", 999999);
 }

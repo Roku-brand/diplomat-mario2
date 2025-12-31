@@ -118,6 +118,8 @@ function startNegotiation(e) {
   negoState.selectedChoice = 0;
   negoState.resolveTimer = 0;
   
+  playSFX("negoStart");
+  
   // Get choices for this enemy type
   const choiceData = NEGOTIATION_CHOICES[e.type];
   if (choiceData) {
@@ -165,9 +167,11 @@ function negotiationTick() {
     // Handle choice navigation
     if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
       negoState.selectedChoice = (negoState.selectedChoice - 1 + negoState.choices.length) % negoState.choices.length;
+      playSFX("select");
     }
     if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
       negoState.selectedChoice = (negoState.selectedChoice + 1) % negoState.choices.length;
+      playSFX("select");
     }
     
     // Number keys for quick selection (1, 2, 3)
@@ -254,6 +258,9 @@ function executeNegotiationChoice(e) {
         
         // Create spectacular defeat effect
         createDefeatEffect(e.x, e.y, "boss_defeat", "🎉 ボス撃破！");
+        createParticles(e.x + e.w/2, e.y + e.h/2, "boss", 25);
+        triggerScreenShake(12, 25);
+        playSFX("bossDefeat");
         
         const bossMessages = {
           boss_market: "大勝利！バイヤー長との大型契約成立！出世への道が開けた！",
@@ -265,6 +272,7 @@ function executeNegotiationChoice(e) {
       } else {
         // Boss phase advance
         e.bossPhase++;
+        playSFX("negoSuccess");
         const phaseMessages = [
           "『まだだ...もう一度交渉しろ』",
           "『なかなかやるな...最後の一押しを見せろ』",
@@ -288,6 +296,8 @@ function executeNegotiationChoice(e) {
     
     // Create defeat effect for regular enemies
     createDefeatEffect(e.x, e.y, "negotiate_success", "契約成立！");
+    createParticles(e.x + e.w/2, e.y + e.h/2, "success", 12);
+    playSFX("negoSuccess");
     
     // If this is a gatekeeper, open the gate
     if (e.isGateGuard) {
@@ -310,6 +320,9 @@ function executeNegotiationChoice(e) {
     // Apply failure effects
     player.trust = clamp(player.trust - 8, 0, 100);
     game.alert = clamp(game.alert + 1, 0, 3);
+    playSFX("negoFail");
+    createParticles(e.x + e.w/2, e.y + e.h/2, "fail", 8);
+    triggerScreenShake(4, 8);
     
     // Failure message based on choice type
     const failMessages = {
@@ -382,6 +395,7 @@ function addCareerExp(amount) {
   }
   
   if (leveledUp) {
+    playSFX("levelUp");
     say(`🎉 昇進！${lastLevelTitle}になった！ボーナス: ${lastLevelBonus}`, 240);
     
     // Create promotion effect

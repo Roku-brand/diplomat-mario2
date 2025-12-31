@@ -35,6 +35,10 @@ function draw() {
   
   const pal = game.stage?.palette || { sky:"#0b0f14", far:"#0b0f14", mid:"#0b0f14", ground:"#222", accent:"#fff" };
 
+  // Update screen shake and particles
+  updateScreenShake();
+  updateParticles();
+
   // background
   ctx.fillStyle = pal.sky;
   ctx.fillRect(0,0,W,H);
@@ -44,15 +48,16 @@ function draw() {
   drawParallax(pal.far, 0.15, 34);
   drawParallax(pal.mid, 0.30, 22);
 
-  // world
+  // world with screen shake
   ctx.save();
-  ctx.translate(-Math.floor(game.cameraX), -Math.floor(game.cameraY));
+  ctx.translate(-Math.floor(game.cameraX) + screenShake.x, -Math.floor(game.cameraY) + screenShake.y);
 
   drawTiles(pal);
   drawCollectibles(); // コインと人脈ポイントを描画
   drawEnemies(pal);
   drawPlayer(pal);
   drawDefeatEffects(); // 敵撃退エフェクト
+  drawParticles(); // パーティクルエフェクト
 
   ctx.restore();
 
@@ -62,6 +67,11 @@ function draw() {
   // Negotiation UI (choice-based dialog)
   if (game.state === "play" && player.negotiating) {
     drawNegotiationUI();
+  }
+
+  // Tutorial overlay
+  if (game.showTutorial) {
+    drawTutorialOverlay();
   }
 
   // Intro overlay
@@ -443,9 +453,31 @@ function drawPlayer(pal) {
   // === Negotiation indicator ===
   const eNear = nearestNegotiableEnemy();
   if (game.state === "play" && eNear && !player.negotiating) {
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("E:交渉", px - 6, py - 10);
+    // Pulsing effect
+    const pulse = Math.sin(game.time * 0.15) * 0.3 + 0.7;
+    
+    // Background pill
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.6 * pulse})`;
+    ctx.fillRect(px - 12, py - 28, 52, 20);
+    
+    // Border
+    ctx.strokeStyle = `rgba(255, 200, 100, ${pulse})`;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px - 12, py - 28, 52, 20);
+    
+    // Text
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+    ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("E:交渉", px - 4, py - 14);
+    
+    // Arrow pointing down
+    ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(px + 13, py - 8);
+    ctx.lineTo(px + 8, py - 2);
+    ctx.lineTo(px + 18, py - 2);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
@@ -469,10 +501,15 @@ function drawNegotiationUI() {
   ctx.fillText(`所持: 💰${player.coins}  👤${player.connections}`, W - 150, panelY + 18);
   
   if (negoState.phase === "choice") {
-    // Title
+    // Title with clearer instructions
     ctx.fillStyle = "rgba(255,200,100,0.95)";
     ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("▼ 交渉アプローチを選択（↑↓/1-3で選択、Enter/Spaceで決定）", 24, panelY + 22);
+    ctx.fillText("▼ 選択肢を選んでください", 24, panelY + 22);
+    
+    // Instructions on right side
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("↑↓:選択 | 1-3:直接選択 | Enter:決定 | Esc:キャンセル", 24, panelY + 140);
     
     // Draw choices
     const choiceStartY = panelY + 42;
@@ -1900,4 +1937,126 @@ function drawBranchOverlay() {
   ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
   ctx.fillText("↑↓: 選択　Enter / Space: 決定　Esc / Backspace: 戻る", 40, H - 30);
+}
+
+// Tutorial overlay for new players
+function drawTutorialOverlay() {
+  // Semi-transparent background
+  ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+  ctx.fillRect(0, 0, W, H);
+  
+  // Tutorial content based on step
+  const tutorials = [
+    {
+      title: "🎮 ようこそ！商社マンへ",
+      content: [
+        "このゲームは「交渉」がメインのアクションゲームです。",
+        "敵を倒すのではなく、交渉して契約を取ることが目標です！",
+        "",
+        "まずは基本操作を覚えましょう。"
+      ],
+      icon: "🤝"
+    },
+    {
+      title: "🏃 移動操作",
+      content: [
+        "← → または A D キー：左右に移動",
+        "Space / W / ↑ キー：ジャンプ",
+        "空中でもう一度押す：2段ジャンプ！",
+        "Shift 長押し：ダッシュで高速移動"
+      ],
+      icon: "⬅️➡️"
+    },
+    {
+      title: "💰 アイテム収集",
+      content: [
+        "💰 コイン：交渉で使えるお金",
+        "👤 名刺：人脈ポイント（強力な交渉材料）",
+        "",
+        "これらを集めると交渉が有利になります！"
+      ],
+      icon: "✨"
+    },
+    {
+      title: "🤝 交渉のやり方",
+      content: [
+        "敵に近づくと「E:交渉」と表示されます。",
+        "E キーを押すと交渉画面が開きます。",
+        "↑↓ または 1-3 で選択肢を選び、",
+        "Enter または Space で決定！"
+      ],
+      icon: "💼"
+    },
+    {
+      title: "🎯 勝利条件",
+      content: [
+        "ステージ内の「ボス」を交渉で3回倒す。",
+        "ボスを倒したら、ゴール（金色のゲート）へ！",
+        "",
+        "がんばれ、商社マン！"
+      ],
+      icon: "🏆"
+    }
+  ];
+  
+  const step = game.tutorialStep;
+  const tut = tutorials[step];
+  const lastTutorialStep = tutorials.length - 1;
+  
+  // Card background
+  const cardW = 500;
+  const cardH = 280;
+  const cardX = (W - cardW) / 2;
+  const cardY = (H - cardH) / 2;
+  
+  // Card shadow
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+  ctx.fillRect(cardX + 5, cardY + 5, cardW, cardH);
+  
+  // Card
+  ctx.fillStyle = "#1a2535";
+  ctx.fillRect(cardX, cardY, cardW, cardH);
+  ctx.strokeStyle = "#ffd700";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(cardX, cardY, cardW, cardH);
+  
+  // Icon
+  ctx.font = "60px sans-serif";
+  ctx.fillText(tut.icon, cardX + cardW - 80, cardY + 80);
+  
+  // Title
+  ctx.fillStyle = "#ffd700";
+  ctx.font = "bold 24px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(tut.title, cardX + 30, cardY + 45);
+  
+  // Content
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.font = "16px system-ui, -apple-system, Segoe UI, sans-serif";
+  let lineY = cardY + 90;
+  for (const line of tut.content) {
+    ctx.fillText(line, cardX + 30, lineY);
+    lineY += 28;
+  }
+  
+  // Progress dots
+  const dotY = cardY + cardH - 40;
+  const dotStartX = cardX + cardW / 2 - (tutorials.length * 20) / 2;
+  for (let i = 0; i < tutorials.length; i++) {
+    ctx.beginPath();
+    ctx.arc(dotStartX + i * 20, dotY, i === step ? 6 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = i === step ? "#ffd700" : "rgba(255, 255, 255, 0.3)";
+    ctx.fill();
+  }
+  
+  // Navigation hint
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  const navText = step < lastTutorialStep 
+    ? "Enter / Space で次へ　|　Esc でスキップ" 
+    : "Enter / Space でゲーム開始！";
+  ctx.fillText(navText, cardX + cardW / 2 - 100, cardY + cardH - 15);
+  
+  // Step indicator
+  ctx.fillStyle = "rgba(255, 200, 100, 0.8)";
+  ctx.fillText(`${step + 1} / ${tutorials.length}`, cardX + cardW - 50, cardY + cardH - 15);
 }
