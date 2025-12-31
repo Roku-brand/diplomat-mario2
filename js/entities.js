@@ -11,15 +11,16 @@ const game = {
   cameraX: 0,
   cameraY: 0,
   time: 0,
-  state: "topmenu", // topmenu | headquarters | branch | transit | select | intro | play | clear | gameover | dictionary | bossIntro | bossBattle
+  state: "topmenu", // topmenu | headquarters | branch | manufacturer | transit | select | intro | play | clear | gameover | dictionary | bossIntro | bossBattle
   introLine: 0,
   alert: 0, // 0..3 affects enemies
   message: "",
   messageT: 0,
   selectedStage: 0, // for stage select screen
-  topMenuSelection: 0, // 0: headquarters, 1: branch, 2: transit, 3: dictionary
+  topMenuSelection: 0, // 0: headquarters, 1: branch, 2: manufacturer, 3: transit
   branchSelection: 0, // sub-menu selection for branch
   headquartersSelection: 0, // sub-menu selection for headquarters
+  manufacturerSelection: 0, // sub-menu selection for manufacturer (メーカー)
   dictionaryPage: 0, // current page in connection dictionary
   bossPhase: 0, // boss battle phase
   bossDefeated: false, // whether current boss is defeated
@@ -27,6 +28,8 @@ const game = {
   tutorialShown: false, // has the tutorial been shown
   tutorialStep: 0, // current tutorial step (0-4)
   showTutorial: false, // currently showing tutorial overlay
+  pendingStartItems: [], // start items to activate after delay
+  startItemDelay: 0, // frame delay for start item activation
 };
 
 // Global player stats (persistent across stages)
@@ -52,6 +55,22 @@ const CAREER_LEVELS = [
   { level: 4, title: "部長", expRequired: 150, bonus: "初期人脈+1" },
   { level: 5, title: "役員", expRequired: 300, bonus: "全ボーナス適用" },
 ];
+
+// メーカー（ショップ）で購入可能なアイテム
+const SHOP_ITEMS = [
+  { id: "outfit2", name: "ビジネスカジュアル", type: "outfit", price: 15, description: "グレースーツ、紫のネクタイ", unlockIndex: 1 },
+  { id: "outfit3", name: "エグゼクティブスタイル", type: "outfit", price: 25, description: "ネイビースーツ、緑のネクタイ", unlockIndex: 2 },
+  { id: "startSpeed", name: "スピードアイテム（初期）", type: "startItem", price: 8, description: "次のステージ開始時にスピードアップ発動", effect: "speed" },
+  { id: "startJump", name: "ジャンプアイテム（初期）", type: "startItem", price: 8, description: "次のステージ開始時にジャンプ強化発動", effect: "jump" },
+  { id: "startMagnet", name: "吸引アイテム（初期）", type: "startItem", price: 10, description: "次のステージ開始時にアイテム吸引発動", effect: "magnet" },
+  { id: "extraHP", name: "追加HP", type: "consumable", price: 12, description: "次のステージで最大HP+1", effect: "hp" },
+];
+
+// 購入済みスタートアイテム（次ステージで使用）
+let purchasedStartItems = [];
+
+// 追加HPフラグ
+let extraHPPurchased = false;
 
 // Connection dictionary entries
 const CONNECTION_TYPES = {
@@ -82,6 +101,8 @@ const player = {
   dashT: 0,
   dashCD: 0,
   canDoubleJump: true, // double jump ability flag
+  hipDropping: false, // ヒップドロップ中かどうか
+  hipDropCD: 0, // ヒップドロップのクールダウン
   coins: 0, // お金
   connections: 0, // 人脈ポイント
   // スキル/パワーアップシステム
@@ -107,93 +128,121 @@ function enemyTemplate(type) {
     originX: 0,
     hostile: true,
     contactDamage: 1,
-    dropType: "coin", // ドロップするアイテムの種類
+    dropType: "connection", // 人脈は敵を倒したらに統一
     defeated: false, // 倒されたかどうか
     isBoss: false,
     bossHP: 1, // ボスは複数回踏み付けが必要
     bossPhase: 0,
+    // 特徴的な行動パターン用
+    attackPattern: "patrol", // patrol | chase | jump | zigzag
+    attackTimer: 0,
+    jumpCD: 0,
   };
 
-  // 敵タイプごとの設定
+  // 敵タイプごとの設定 - 特徴的な攻撃方法・配置
   if (type === "competitor") {
-    // 競合営業マン - 素早い動き
+    // 競合営業マン - 素早い動き、追いかけてくる
     return { ...base,
-      vx: 1.0, patrol: 120, dropType: "coin"
+      vx: 1.2, patrol: 100, dropType: "connection",
+      attackPattern: "chase", // プレイヤーを追いかける
+      contactDamage: 1
     };
   }
   if (type === "buyer") {
-    // バイヤー - 人脈をドロップ
+    // バイヤー - ゆっくり動き、人脈を多くドロップ
     return { ...base,
-      vx: 0.6, patrol: 70, dropType: "connection"
+      vx: 0.5, patrol: 60, dropType: "connection2",
+      attackPattern: "patrol",
+      contactDamage: 1
     };
   }
   if (type === "broker") {
-    // ブローカー - ランダムなパワーアップ
+    // ブローカー - ジグザグ移動、パワーアップをドロップ
     return { ...base,
-      vx: 1.0, patrol: 110, dropType: "powerup"
+      vx: 1.0, patrol: 110, dropType: "powerup",
+      attackPattern: "zigzag",
+      contactDamage: 1
     };
   }
   if (type === "executive") {
-    // 重役 - 大量のコイン
+    // 重役 - 堂々と歩く、大量のコインと人脈
     return { ...base,
-      vx: 1.1, patrol: 140, dropType: "coins3"
+      vx: 0.6, patrol: 80, dropType: "coins3_connection",
+      attackPattern: "patrol",
+      contactDamage: 2
     };
   }
   if (type === "union") {
-    // 組合代表 - 人脈
+    // 組合代表 - ジャンプしながら移動
     return { ...base,
-      vx: 0.8, patrol: 150, dropType: "connection"
+      vx: 0.9, patrol: 120, dropType: "connection",
+      attackPattern: "jump",
+      jumpCD: 60, // Start with delay to prevent immediate jump
+      contactDamage: 1
     };
   }
   if (type === "government") {
-    // 政府官僚 - パワーアップ
+    // 政府官僚 - 規則的に動く、パワーアップをドロップ
     return { ...base,
-      vx: 0.95, patrol: 170, dropType: "powerup"
+      vx: 0.7, patrol: 100, dropType: "powerup",
+      attackPattern: "patrol",
+      contactDamage: 1
     };
   }
   if (type === "media") {
-    // メディア記者 - 避けるべき敵（踏み付け不可）
+    // メディア記者 - 速く追いかけてくる（踏み付け不可）
     return { ...base,
-      vx: 1.3, patrol: 220, dropType: "none",
-      unstompable: true // 踏めない
+      vx: 1.5, patrol: 200, dropType: "none",
+      unstompable: true, // 踏めない
+      attackPattern: "chase",
+      contactDamage: 1
     };
   }
   if (type === "gatekeeper") {
-    // ゲートキーパー - コインをドロップ
+    // ゲートキーパー - 狭い範囲をパトロール
     return { ...base,
-      vx: 0.5, patrol: 60, dropType: "coin"
+      vx: 0.4, patrol: 40, dropType: "connection",
+      attackPattern: "patrol",
+      contactDamage: 1
     };
   }
   
   // === BOSS CHARACTERS ===
   if (type === "boss_market") {
     return { ...base,
-      vx: 0.5, patrol: 60,
+      vx: 0.7, patrol: 80,
       w: 36, h: 44,
       isBoss: true,
       bossPhase: 1,
       bossHP: 3,
-      dropType: "powerup"
+      dropType: "powerup",
+      attackPattern: "chase",
+      contactDamage: 2
     };
   }
   if (type === "boss_office") {
     return { ...base,
-      vx: 0.4, patrol: 40,
+      vx: 0.6, patrol: 60,
       w: 38, h: 46,
       isBoss: true,
       bossPhase: 1,
       bossHP: 3,
-      dropType: "powerup"
+      dropType: "powerup",
+      attackPattern: "zigzag",
+      contactDamage: 2
     };
   }
   if (type === "boss_port") {
     return { ...base,
-      vx: 0.3, patrol: 30,
+      vx: 0.5, patrol: 50,
       w: 40, h: 48,
       isBoss: true,
       bossPhase: 1,
       bossHP: 3,
-      dropType: "powerup"
+      dropType: "powerup",
+      attackPattern: "jump",
+      jumpCD: 45, // Start with delay to prevent immediate jump
+      contactDamage: 2
     };
   }
   

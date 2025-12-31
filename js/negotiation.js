@@ -140,9 +140,9 @@ function stompEnemy(e) {
   return true;
 }
 
-// 敵がドロップするアイテム
+// 敵がドロップするアイテム（人脈は敵を倒したらに統一）
 function dropEnemyItem(e) {
-  const dropType = e.dropType || "coin";
+  const dropType = e.dropType || "connection";
   
   if (dropType === "coin") {
     collectibles.push({ type: "coin", x: e.x, y: e.y - 10, collected: false, fromBox: true, vy: -4 });
@@ -150,6 +150,19 @@ function dropEnemyItem(e) {
   } else if (dropType === "connection") {
     collectibles.push({ type: "connection", x: e.x, y: e.y - 10, collected: false, fromBox: true, vy: -4 });
     say("👤 人脈ゲット！", 60);
+  } else if (dropType === "connection2") {
+    // バイヤーなどは人脈を2つドロップ
+    for (let i = 0; i < 2; i++) {
+      collectibles.push({ 
+        type: "connection", 
+        x: e.x + (i - 0.5) * 15, 
+        y: e.y - 10, 
+        collected: false, 
+        fromBox: true, 
+        vy: -4 - i 
+      });
+    }
+    say("👤👤 人脈×2ゲット！", 80);
   } else if (dropType === "coins3") {
     for (let i = 0; i < 3; i++) {
       collectibles.push({ 
@@ -162,6 +175,20 @@ function dropEnemyItem(e) {
       });
     }
     say("💰💰💰 大量コインゲット！", 80);
+  } else if (dropType === "coins3_connection") {
+    // 重役はコイン3つと人脈1つをドロップ
+    for (let i = 0; i < 3; i++) {
+      collectibles.push({ 
+        type: "coin", 
+        x: e.x + (i - 1) * 12, 
+        y: e.y - 10, 
+        collected: false, 
+        fromBox: true, 
+        vy: -4 - i 
+      });
+    }
+    collectibles.push({ type: "connection", x: e.x, y: e.y - 20, collected: false, fromBox: true, vy: -6 });
+    say("💰💰💰👤 大量報酬ゲット！", 100);
   } else if (dropType === "powerup") {
     const powerupTypes = ["speed", "jump", "invincible", "magnet"];
     const pType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];

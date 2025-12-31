@@ -21,6 +21,12 @@ function draw() {
     return;
   }
   
+  // Handle manufacturer menu (メーカー)
+  if (game.state === "manufacturer") {
+    drawManufacturerOverlay();
+    return;
+  }
+  
   // Handle connection dictionary
   if (game.state === "dictionary") {
     drawDictionaryOverlay();
@@ -1180,7 +1186,7 @@ function drawGameoverOverlay(pal) {
   wrapText(game.message || "Rで再開", 40, 130, W-80, 22);
 
   ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText("Rでリトライ", 40, H - 40);
+  ctx.fillText("Rでリトライ　|　Enter/Spaceでトップページへ", 40, H - 40);
 }
 
 function wrapText(text, x, y, maxWidth, lineHeight) {
@@ -1341,12 +1347,12 @@ function drawTopMenuOverlay() {
       color: "#5a7a6a"
     },
     { 
-      name: "③ 人脈図鑑", 
-      subtitle: "コレクション",
-      desc: "出会った人物を確認",
-      icon: "📇",
+      name: "③ メーカー", 
+      subtitle: "服・アイテム購入",
+      desc: "スタイルやパワーアップを購入",
+      icon: "🏭",
       x: 470,
-      color: "#6a5a8a"
+      color: "#8a6a5a"
     },
     { 
       name: "④ 交通センター", 
@@ -1891,6 +1897,156 @@ function drawBranchOverlay() {
   ctx.fillText("↑↓: 選択　Enter / Space: 決定　Esc / Backspace: 戻る", 40, H - 30);
 }
 
+// Manufacturer menu overlay (メーカー - 服やアイテム購入)
+function drawManufacturerOverlay() {
+  // Background
+  ctx.fillStyle = "#1a2025";
+  ctx.fillRect(0, 0, W, H);
+  
+  // Factory/shop pattern
+  ctx.fillStyle = "#252a30";
+  for (let i = 0; i < 6; i++) {
+    ctx.fillRect(50 + i * 160, 100, 120, H - 180);
+  }
+  
+  // Title
+  ctx.fillStyle = "rgba(255, 220, 150, 0.95)";
+  ctx.font = "bold 28px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("🏭 メーカー - 服・アイテム購入", 50, 50);
+  
+  // Stats display
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(`💰 貯金: ${playerGlobal.savings}`, 50, 85);
+  
+  // Menu items
+  const menuY = 120;
+  const itemHeight = 60;
+  
+  for (let i = 0; i < SHOP_ITEMS.length; i++) {
+    const item = SHOP_ITEMS[i];
+    const y = menuY + i * itemHeight;
+    const isSelected = i === game.manufacturerSelection;
+    
+    // Check if already purchased (for outfits)
+    let alreadyOwned = false;
+    if (item.type === "outfit" && playerGlobal.outfitsUnlocked[item.unlockIndex]) {
+      alreadyOwned = true;
+    }
+    
+    // Background
+    if (isSelected) {
+      ctx.fillStyle = "rgba(200, 150, 100, 0.3)";
+      ctx.fillRect(40, y - 5, 500, itemHeight - 5);
+      ctx.strokeStyle = "#ffd700";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(40, y - 5, 500, itemHeight - 5);
+    }
+    
+    // Item icon based on type
+    let icon = "📦";
+    if (item.type === "outfit") icon = "👔";
+    else if (item.type === "startItem") {
+      if (item.effect === "speed") icon = "⚡";
+      else if (item.effect === "jump") icon = "🦘";
+      else if (item.effect === "magnet") icon = "🧲";
+    }
+    else if (item.type === "consumable") icon = "❤️";
+    
+    ctx.font = "24px sans-serif";
+    ctx.fillText(icon, 55, y + 28);
+    
+    // Item name
+    ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.6)";
+    if (alreadyOwned) ctx.fillStyle = "rgba(150, 150, 150, 0.6)";
+    ctx.font = isSelected ? "bold 16px system-ui, -apple-system, Segoe UI, sans-serif" : "14px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(item.name, 95, y + 18);
+    
+    // Description
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText(item.description, 95, y + 38);
+    
+    // Price
+    if (alreadyOwned) {
+      ctx.fillStyle = "#22c55e";
+      ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("購入済み", 450, y + 25);
+    } else {
+      ctx.fillStyle = playerGlobal.savings >= item.price ? "#ffd700" : "#ef4444";
+      ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(`${item.price}💰`, 460, y + 25);
+    }
+    
+    if (isSelected) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "18px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("▶", 43, y + 22);
+    }
+  }
+  
+  // Back button
+  const backY = menuY + SHOP_ITEMS.length * itemHeight;
+  const backSelected = game.manufacturerSelection >= SHOP_ITEMS.length;
+  
+  if (backSelected) {
+    ctx.fillStyle = "rgba(100, 100, 120, 0.3)";
+    ctx.fillRect(40, backY - 5, 200, itemHeight - 5);
+    ctx.strokeStyle = "#ffd700";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(40, backY - 5, 200, itemHeight - 5);
+  }
+  
+  ctx.fillStyle = backSelected ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0.6)";
+  ctx.font = backSelected ? "bold 16px system-ui, -apple-system, Segoe UI, sans-serif" : "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("◀ 戻る", 60, backY + 25);
+  
+  if (backSelected) {
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "18px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("▶", 43, backY + 22);
+  }
+  
+  // Preview area for purchased start items
+  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.fillRect(560, 120, 180, 280);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(560, 120, 180, 280);
+  
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("購入済みアイテム", 590, 145);
+  
+  // Show purchased start items
+  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
+  if (purchasedStartItems.length > 0) {
+    let itemY = 175;
+    for (const effect of purchasedStartItems) {
+      const skill = SKILLS[effect];
+      if (skill) {
+        ctx.fillText(`${skill.icon} ${skill.name}`, 580, itemY);
+        itemY += 25;
+      }
+    }
+  } else {
+    ctx.fillText("次ステージ用アイテムなし", 575, 175);
+  }
+  
+  // Extra HP status
+  ctx.fillText(`追加HP: ${extraHPPurchased ? "購入済み ✅" : "なし"}`, 575, 280);
+  
+  // Unlocked outfits count
+  const unlockedCount = playerGlobal.outfitsUnlocked.filter(v => v).length;
+  ctx.fillText(`解放済みスタイル: ${unlockedCount}/${playerGlobal.outfitsUnlocked.length}`, 575, 320);
+  
+  // Instructions
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText("↑↓: 選択　Enter / Space: 購入　Esc / Backspace: 戻る", 40, H - 30);
+}
+
 // Tutorial overlay for new players
 function drawTutorialOverlay() {
   // Semi-transparent background
@@ -1903,7 +2059,7 @@ function drawTutorialOverlay() {
       title: "🎮 ようこそ！商社マンへ",
       content: [
         "このゲームはマリオ風アクションゲームです！",
-        "敵を踏み付けてアイテムをゲットしよう！",
+        "敵を踏み付けて人脈👤をゲットしよう！",
         "",
         "まずは基本操作を覚えましょう。"
       ],
@@ -1920,31 +2076,31 @@ function drawTutorialOverlay() {
       icon: "⬅️➡️"
     },
     {
-      title: "💰 アイテム収集",
+      title: "⬇️ ヒップドロップ",
       content: [
-        "💰 コイン：たくさん集めよう！",
-        "👤 名刺：人脈ポイントを増やせ！",
-        "?ブロック：下から叩くとアイテムが出る！",
-        "敵を踏むとドロップアイテムをゲット！"
+        "空中で ↓ または S キー：ヒップドロップ！",
+        "高速で落下し、敵を踏みやすくなる！",
+        "?ブロックの上からも叩ける！",
+        "着地時に衝撃波が発生！"
       ],
-      icon: "✨"
+      icon: "💥"
     },
     {
-      title: "⚡ パワーアップ",
+      title: "💰 アイテム収集",
       content: [
-        "⚡ スピードアップ：移動が速くなる！",
-        "🦘 ジャンプ強化：高く跳べる！",
-        "⭐ 無敵：敵に触れても平気！",
-        "🧲 アイテム吸引：アイテムが寄ってくる！"
+        "💰 コイン：コース上で集めよう！",
+        "👤 人脈：敵を倒すとドロップ！",
+        "?ブロック：叩くとアイテムが出る！",
+        "メーカーでアイテムを購入できる！"
       ],
-      icon: "💪"
+      icon: "✨"
     },
     {
       title: "🎯 勝利条件",
       content: [
         "ステージ内の「ボス」を3回踏み付けろ！",
         "ボスを倒したら、ゴール（金色のゲート）へ！",
-        "",
+        "クリア後はトップページに戻る！",
         "がんばれ、商社マン！"
       ],
       icon: "🏆"
