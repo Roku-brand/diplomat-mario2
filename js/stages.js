@@ -148,69 +148,61 @@ function makeStageMap_Port() {
   return m;
 }
 
-// コレクティブル（コインと人脈ポイント）の配置を拡充
+// コレクティブル（コインのみ - 人脈は敵ドロップに統一）の配置を拡充
 function getCollectibles_Market() {
   return [
+    // コインはコース上に配置（取りやすい位置に）
     { type: "coin", x: 5*TILE, y: 10*TILE },
     { type: "coin", x: 8*TILE, y: 10*TILE },
     { type: "coin", x: 12*TILE, y: 6*TILE },
     { type: "coin", x: 20*TILE, y: 10*TILE },
-    { type: "connection", x: 28*TILE, y: 8*TILE },
+    { type: "coin", x: 25*TILE, y: 10*TILE },
     { type: "coin", x: 35*TILE, y: 10*TILE },
     { type: "coin", x: 42*TILE, y: 6*TILE },
     { type: "coin", x: 45*TILE, y: 7*TILE },
-    { type: "connection", x: 52*TILE, y: 10*TILE },
+    { type: "coin", x: 55*TILE, y: 10*TILE },
     { type: "coin", x: 60*TILE, y: 6*TILE },
     { type: "coin", x: 65*TILE, y: 10*TILE },
-    { type: "connection", x: 70*TILE, y: 8*TILE },
-    { type: "connection", x: 75*TILE, y: 10*TILE },
     { type: "coin", x: 80*TILE, y: 10*TILE },
     { type: "coin", x: 85*TILE, y: 7*TILE },
-    { type: "connection", x: 95*TILE, y: 6*TILE },
     { type: "coin", x: 100*TILE, y: 10*TILE },
   ];
 }
 
 function getCollectibles_Office() {
   return [
+    // コインはコース上に配置
     { type: "coin", x: 3*TILE, y: 10*TILE },
     { type: "coin", x: 5*TILE, y: 10*TILE },
     { type: "coin", x: 8*TILE, y: 10*TILE },
-    { type: "connection", x: 18*TILE, y: 7*TILE },
+    { type: "coin", x: 15*TILE, y: 10*TILE },
     { type: "coin", x: 22*TILE, y: 10*TILE },
     { type: "coin", x: 30*TILE, y: 10*TILE },
     { type: "coin", x: 35*TILE, y: 5*TILE },
-    { type: "connection", x: 40*TILE, y: 10*TILE },
-    { type: "connection", x: 50*TILE, y: 7*TILE },
+    { type: "coin", x: 45*TILE, y: 10*TILE },
     { type: "coin", x: 55*TILE, y: 10*TILE },
     { type: "coin", x: 58*TILE, y: 10*TILE },
     { type: "coin", x: 65*TILE, y: 10*TILE },
     { type: "coin", x: 70*TILE, y: 6*TILE },
-    { type: "connection", x: 75*TILE, y: 10*TILE },
-    { type: "connection", x: 80*TILE, y: 7*TILE },
     { type: "coin", x: 85*TILE, y: 10*TILE },
   ];
 }
 
 function getCollectibles_Port() {
   return [
+    // コインはコース上に配置
     { type: "coin", x: 3*TILE, y: 10*TILE },
     { type: "coin", x: 6*TILE, y: 10*TILE },
     { type: "coin", x: 10*TILE, y: 10*TILE },
     { type: "coin", x: 15*TILE, y: 10*TILE },
-    { type: "connection", x: 20*TILE, y: 8*TILE },
-    { type: "connection", x: 22*TILE, y: 8*TILE },
+    { type: "coin", x: 25*TILE, y: 10*TILE },
     { type: "coin", x: 28*TILE, y: 10*TILE },
     { type: "coin", x: 35*TILE, y: 10*TILE },
     { type: "coin", x: 38*TILE, y: 7*TILE },
-    { type: "connection", x: 48*TILE, y: 10*TILE },
     { type: "coin", x: 53*TILE, y: 10*TILE },
     { type: "coin", x: 58*TILE, y: 8*TILE },
-    { type: "connection", x: 62*TILE, y: 10*TILE },
     { type: "coin", x: 70*TILE, y: 10*TILE },
     { type: "coin", x: 75*TILE, y: 7*TILE },
-    { type: "connection", x: 78*TILE, y: 7*TILE },
-    { type: "connection", x: 82*TILE, y: 10*TILE },
   ];
 }
 
@@ -221,8 +213,8 @@ const STAGES = [
     palette: { sky:"#1a2535", far:"#1f3045", mid:"#2a4055", ground:"#4a6a7a", accent:"#f0d090" },
     intro: [
       "商社マン・鈴木拓海。入社3年目、初の海外案件を任された。",
-      "展示会場でコイン💰と人脈👤を集めよう！",
-      "?ブロックを下から叩くとアイテムが出る！",
+      "展示会場でコイン💰を集めよう！人脈👤は敵を倒すとゲット！",
+      "?ブロックを叩くか、↓キーでヒップドロップ！",
       "敵は踏み付けて倒せ！【ボス】を3回踏んでステージクリアだ！"
     ],
     map: makeStageMap_Market(),
@@ -236,8 +228,8 @@ const STAGES = [
     ],
     bossSpawn: { x: 102*TILE, y: 8*TILE, type:"boss_market" },
     npcNotes: [
-      "敵を踏み付けるとアイテムをドロップする！",
-      "?ブロックを叩いてパワーアップをゲットしよう！"
+      "敵を踏み付けると人脈👤をドロップ！",
+      "↓キーでヒップドロップ！?ブロックも叩ける！"
     ],
   },
   {

@@ -28,6 +28,8 @@ function loadStage(idx) {
   player.dashT = 0;
   player.dashCD = 0;
   player.canDoubleJump = true;
+  player.hipDropping = false;
+  player.hipDropCD = 0;
   
   // スキル状態リセット
   player.activeSkill = null;
@@ -42,6 +44,12 @@ function loadStage(idx) {
   player.connections = 0;
   if (playerGlobal.careerLevel >= 3) player.coins += 2;
   if (playerGlobal.careerLevel >= 4) player.connections += 1;
+  
+  // Apply purchased extra HP
+  if (extraHPPurchased) {
+    player.hp += 1;
+    extraHPPurchased = false;
+  }
 
   // enemies
   enemies = [];
@@ -61,16 +69,29 @@ function loadStage(idx) {
     enemies.push(boss);
   }
 
-  // collectibles (コインと人脈ポイント)
+  // collectibles (コインのみ - 人脈は敵ドロップに統一)
   collectibles = [];
   if (game.stage.collectibles) {
     for (const c of game.stage.collectibles) {
-      collectibles.push({ ...c, collected: false });
+      // Only add coins on the course; connections come from enemies
+      if (c.type === "coin") {
+        collectibles.push({ ...c, collected: false });
+      }
     }
   }
   
   // パワーアップアイテム
   powerUps = [];
+  
+  // Apply purchased start items (購入済みスタートアイテムを発動)
+  if (purchasedStartItems.length > 0) {
+    setTimeout(() => {
+      for (const item of purchasedStartItems) {
+        activateSkill(item);
+      }
+      purchasedStartItems = [];
+    }, 500);
+  }
   
   // アイテムボックス状態リセット
   itemBoxes.clear();
@@ -119,8 +140,8 @@ function update() {
         game.state = "branch"; // 支社
         game.branchSelection = 0;
       } else if (game.topMenuSelection === 2) {
-        game.state = "dictionary"; // 人脈図鑑
-        game.dictionaryPage = 0;
+        game.state = "manufacturer"; // メーカー（服やアイテム購入）
+        game.manufacturerSelection = 0;
       } else {
         game.state = "select"; // 交通センター（ステージ選択）
       }
@@ -233,6 +254,60 @@ function update() {
     return;
   }
 
+  // Manufacturer menu (メーカー - 服やアイテム購入)
+  if (game.state === "manufacturer") {
+    const totalItems = SHOP_ITEMS.length + 1; // +1 for back button
+    if (pressed("ArrowUp") || pressed("w") || pressed("W")) {
+      game.manufacturerSelection = (game.manufacturerSelection - 1 + totalItems) % totalItems;
+      playSFX("select");
+    }
+    if (pressed("ArrowDown") || pressed("s") || pressed("S")) {
+      game.manufacturerSelection = (game.manufacturerSelection + 1) % totalItems;
+      playSFX("select");
+    }
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      if (game.manufacturerSelection >= SHOP_ITEMS.length) {
+        // Back button
+        game.state = "topmenu";
+        playSFX("confirm");
+      } else {
+        // Try to purchase item
+        const item = SHOP_ITEMS[game.manufacturerSelection];
+        if (playerGlobal.savings >= item.price) {
+          if (item.type === "outfit") {
+            if (!playerGlobal.outfitsUnlocked[item.unlockIndex]) {
+              playerGlobal.savings -= item.price;
+              playerGlobal.outfitsUnlocked[item.unlockIndex] = true;
+              playSFX("negoSuccess");
+              say(`${item.name}を購入！本社で着替え可能！`, 120);
+            } else {
+              say("すでに購入済みです", 90);
+            }
+          } else if (item.type === "startItem") {
+            playerGlobal.savings -= item.price;
+            purchasedStartItems.push(item.effect);
+            playSFX("negoSuccess");
+            say(`${item.name}を購入！次のステージで発動！`, 120);
+          } else if (item.type === "consumable") {
+            playerGlobal.savings -= item.price;
+            if (item.effect === "hp") {
+              extraHPPurchased = true;
+            }
+            playSFX("negoSuccess");
+            say(`${item.name}を購入！次のステージで適用！`, 120);
+          }
+        } else {
+          say(`貯金が足りない（必要: ${item.price}💰）`, 90);
+          playSFX("negoFail");
+        }
+      }
+    }
+    if (pressed("Escape") || pressed("Backspace")) {
+      game.state = "topmenu";
+    }
+    return;
+  }
+
   // Stage selection screen
   if (game.state === "select") {
     // Navigation
@@ -271,7 +346,12 @@ function update() {
   }
 
   if (game.state === "gameover") {
+    // Press R to retry or Enter to return to top menu
     if (pressed("r") || pressed("R")) loadStage(game.stageIndex);
+    if (pressed("Enter") || pressed(" ") || pressed("e") || pressed("E")) {
+      game.state = "topmenu";
+      game.topMenuSelection = 0;
+    }
     return;
   }
 
@@ -310,14 +390,10 @@ function update() {
     // Increment total contracts
     playerGlobal.totalContracts++;
     
-    if (game.stageIndex < STAGES.length - 1) {
-      loadStage(game.stageIndex + 1);
-    } else {
-      // end - return to top menu
-      game.state = "topmenu";
-      game.topMenuSelection = 0;
-      say(`全ステージクリア！貯金+${stageReward + bonusCoins}　人脈+${bonusConnections}　🎉ゲームクリア！`, 300);
-    }
+    // Return to top menu instead of auto-advancing
+    game.state = "topmenu";
+    game.topMenuSelection = 0;
+    say(`ステージクリア！貯金+${stageReward + bonusCoins}　人脈+${bonusConnections}`, 240);
     return;
   }
 
@@ -328,7 +404,11 @@ function update() {
   const left = isDown("ArrowLeft") || isDown("a") || isDown("A");
   const right = isDown("ArrowRight") || isDown("d") || isDown("D");
   const jump = pressed(" ") || pressed("ArrowUp") || pressed("w") || pressed("W");
+  const down = isDown("ArrowDown") || isDown("s") || isDown("S");
   const dashHold = isDown("Shift");
+  
+  // Hip drop cooldown
+  if (player.hipDropCD > 0) player.hipDropCD--;
 
   // dash (hold to dash)
   if (player.dashCD > 0) player.dashCD--;
@@ -344,9 +424,42 @@ function update() {
   let moveSpeed = player.dashT > 0 ? 6.2 : 3.2;
   if (player.speedBoost) moveSpeed *= 1.5;
 
-  if (left && !right) { player.vx = -moveSpeed; player.face = -1; }
-  else if (right && !left) { player.vx = moveSpeed; player.face = 1; }
-  else player.vx = lerp(player.vx, 0, 0.4);
+  // ヒップドロップ処理（空中で下キーを押す）
+  if (down && !player.onGround && !player.hipDropping && player.hipDropCD === 0) {
+    player.hipDropping = true;
+    player.vy = 18; // 高速落下
+    player.vx = 0; // 横移動停止
+    playSFX("dash");
+    say("ヒップドロップ！", 40);
+  }
+
+  // ヒップドロップ中の制御
+  if (player.hipDropping) {
+    player.vx = 0; // 横移動不可
+    if (player.onGround) {
+      // 着地時
+      player.hipDropping = false;
+      player.hipDropCD = 20; // クールダウン
+      triggerScreenShake(6, 10);
+      createParticles(player.x + player.w/2, player.y + player.h, "stomp", 12);
+      
+      // 着地時に真下のアイテムボックスを叩く
+      const footTx1 = Math.floor((player.x + 4) / TILE);
+      const footTx2 = Math.floor((player.x + player.w - 4) / TILE);
+      const footTy = Math.floor((player.y + player.h + 2) / TILE);
+      
+      if (isItemBoxTile(tileAt(footTx1, footTy))) {
+        hitItemBox(footTx1, footTy);
+      }
+      if (isItemBoxTile(tileAt(footTx2, footTy))) {
+        hitItemBox(footTx2, footTy);
+      }
+    }
+  } else {
+    if (left && !right) { player.vx = -moveSpeed; player.face = -1; }
+    else if (right && !left) { player.vx = moveSpeed; player.face = 1; }
+    else player.vx = lerp(player.vx, 0, 0.4);
+  }
 
   // Jump and Double Jump logic
   // ジャンプ力アップスキルの効果
@@ -464,16 +577,52 @@ function updateEnemies() {
       continue;
     }
 
-    // patrol
+    // Attack pattern implementation (特徴的な攻撃方法)
     const patrolLeft = e.originX - e.patrol;
     const patrolRight = e.originX + e.patrol;
-
     let speed = e.vx;
+    
+    // Update attack timer
+    e.attackTimer = (e.attackTimer || 0) + 1;
+    
+    // Pattern-based movement
+    if (e.attackPattern === "chase") {
+      // Chase player if within range
+      const dx = player.x - e.x;
+      const dist = Math.abs(dx);
+      if (dist < 200 && dist > 10) {
+        e.dir = dx > 0 ? 1 : -1;
+        speed = e.vx * 1.3; // Faster when chasing
+      } else {
+        // Normal patrol when out of range
+        if (e.x < patrolLeft) e.dir = 1;
+        if (e.x > patrolRight) e.dir = -1;
+      }
+    } else if (e.attackPattern === "jump") {
+      // Jump periodically
+      if (e.jumpCD !== undefined) {
+        if (e.jumpCD > 0) e.jumpCD--;
+        if (e.jumpCD === 0 && e.onGround) {
+          e.vy = -10;
+          e.jumpCD = 90; // Jump every 90 frames
+        }
+      }
+      if (e.x < patrolLeft) e.dir = 1;
+      if (e.x > patrolRight) e.dir = -1;
+    } else if (e.attackPattern === "zigzag") {
+      // Zigzag movement
+      const zigzagOffset = Math.sin(e.attackTimer * 0.1) * 0.5;
+      speed = e.vx * (1 + zigzagOffset);
+      if (e.x < patrolLeft) e.dir = 1;
+      if (e.x > patrolRight) e.dir = -1;
+    } else {
+      // Normal patrol
+      if (e.x < patrolLeft) e.dir = 1;
+      if (e.x > patrolRight) e.dir = -1;
+    }
 
-    // normal patrol
+    // Apply movement
     e.vx = e.dir * speed * 0.85;
-    if (e.x < patrolLeft) e.dir = 1;
-    if (e.x > patrolRight) e.dir = -1;
 
     // gravity for non-drones
     if (e.type !== "drone") {
@@ -483,6 +632,12 @@ function updateEnemies() {
     }
 
     resolveCollisions(e);
+    
+    // Track onGround for jump pattern
+    const footY = e.y + e.h + 1;
+    const footTx = Math.floor((e.x + e.w/2) / TILE);
+    const footTy = Math.floor(footY / TILE);
+    e.onGround = isSolidTile(tileAt(footTx, footTy));
 
     // 敵との衝突判定
     if (e.hostile && !e.defeated && aabb(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) {
@@ -492,13 +647,17 @@ function updateEnemies() {
       const playerFalling = player.vy > 0;
       const stompZone = playerBottom <= enemyTop + 15 && playerBottom >= enemyTop - 5;
       
-      if (playerFalling && stompZone && !e.unstompable) {
+      // ヒップドロップ中は踏み付け範囲を広げる
+      const hipDropStomp = player.hipDropping && playerBottom <= enemyTop + 20;
+      
+      if ((playerFalling && stompZone && !e.unstompable) || (hipDropStomp && !e.unstompable)) {
         // 踏み付け成功！
         const stomped = stompEnemy(e);
         if (stomped) {
           // プレイヤーを上にバウンド
-          player.vy = -10;
+          player.vy = player.hipDropping ? -12 : -10;
           player.canDoubleJump = true;
+          player.hipDropping = false;
         }
       } else {
         // 横から当たった場合はダメージ
