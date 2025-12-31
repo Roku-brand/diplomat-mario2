@@ -84,14 +84,10 @@ function loadStage(idx) {
   powerUps = [];
   
   // Apply purchased start items (購入済みスタートアイテムを発動)
-  if (purchasedStartItems.length > 0) {
-    setTimeout(() => {
-      for (const item of purchasedStartItems) {
-        activateSkill(item);
-      }
-      purchasedStartItems = [];
-    }, 500);
-  }
+  // Use frame-based delay instead of setTimeout
+  game.pendingStartItems = purchasedStartItems.slice();
+  game.startItemDelay = 30; // Wait 30 frames before activating
+  purchasedStartItems = [];
   
   // アイテムボックス状態リセット
   itemBoxes.clear();
@@ -400,6 +396,18 @@ function update() {
   // =====================================================
   // PLAY state
   // =====================================================
+  
+  // Handle pending start items (frame-based delay)
+  if (game.startItemDelay !== undefined && game.startItemDelay > 0) {
+    game.startItemDelay--;
+    if (game.startItemDelay === 0 && game.pendingStartItems && game.pendingStartItems.length > 0) {
+      for (const item of game.pendingStartItems) {
+        activateSkill(item);
+      }
+      game.pendingStartItems = [];
+    }
+  }
+  
   // Player control
   const left = isDown("ArrowLeft") || isDown("a") || isDown("A");
   const right = isDown("ArrowRight") || isDown("d") || isDown("D");
@@ -601,8 +609,9 @@ function updateEnemies() {
     } else if (e.attackPattern === "jump") {
       // Jump periodically
       if (e.jumpCD !== undefined) {
-        if (e.jumpCD > 0) e.jumpCD--;
-        if (e.jumpCD === 0 && e.onGround) {
+        if (e.jumpCD > 0) {
+          e.jumpCD--;
+        } else if (e.onGround) {
           e.vy = -10;
           e.jumpCD = 90; // Jump every 90 frames
         }
@@ -610,9 +619,9 @@ function updateEnemies() {
       if (e.x < patrolLeft) e.dir = 1;
       if (e.x > patrolRight) e.dir = -1;
     } else if (e.attackPattern === "zigzag") {
-      // Zigzag movement
-      const zigzagOffset = Math.sin(e.attackTimer * 0.1) * 0.5;
-      speed = e.vx * (1 + zigzagOffset);
+      // Zigzag movement - use absolute value to ensure consistent direction
+      const zigzagOffset = Math.sin(e.attackTimer * 0.1) * 0.4;
+      speed = e.vx * Math.max(0.5, 1 + zigzagOffset); // Clamp to prevent negative speed
       if (e.x < patrolLeft) e.dir = 1;
       if (e.x > patrolRight) e.dir = -1;
     } else {
@@ -647,8 +656,8 @@ function updateEnemies() {
       const playerFalling = player.vy > 0;
       const stompZone = playerBottom <= enemyTop + 15 && playerBottom >= enemyTop - 5;
       
-      // ヒップドロップ中は踏み付け範囲を広げる
-      const hipDropStomp = player.hipDropping && playerBottom <= enemyTop + 20;
+      // ヒップドロップ中は踏み付け範囲を広げる（必ず落下中であることを確認）
+      const hipDropStomp = player.hipDropping && playerFalling && playerBottom <= enemyTop + 20;
       
       if ((playerFalling && stompZone && !e.unstompable) || (hipDropStomp && !e.unstompable)) {
         // 踏み付け成功！

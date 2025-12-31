@@ -28,6 +28,8 @@ const game = {
   tutorialShown: false, // has the tutorial been shown
   tutorialStep: 0, // current tutorial step (0-4)
   showTutorial: false, // currently showing tutorial overlay
+  pendingStartItems: [], // start items to activate after delay
+  startItemDelay: 0, // frame delay for start item activation
 };
 
 // Global player stats (persistent across stages)
@@ -175,7 +177,7 @@ function enemyTemplate(type) {
     return { ...base,
       vx: 0.9, patrol: 120, dropType: "connection",
       attackPattern: "jump",
-      jumpCD: 0,
+      jumpCD: 60, // Start with delay to prevent immediate jump
       contactDamage: 1
     };
   }
@@ -239,7 +241,7 @@ function enemyTemplate(type) {
       bossHP: 3,
       dropType: "powerup",
       attackPattern: "jump",
-      jumpCD: 0,
+      jumpCD: 45, // Start with delay to prevent immediate jump
       contactDamage: 2
     };
   }
