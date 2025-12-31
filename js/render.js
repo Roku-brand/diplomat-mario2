@@ -54,6 +54,7 @@ function draw() {
 
   drawTiles(pal);
   drawCollectibles(); // コインと人脈ポイントを描画
+  drawPowerUps(); // パワーアップアイテムを描画
   drawEnemies(pal);
   drawPlayer(pal);
   drawDefeatEffects(); // 敵撃退エフェクト
@@ -64,9 +65,9 @@ function draw() {
   // HUD
   drawHUD(pal);
   
-  // Negotiation UI (choice-based dialog)
-  if (game.state === "play" && player.negotiating) {
-    drawNegotiationUI();
+  // スキル効果表示
+  if (game.state === "play" && player.activeSkill) {
+    drawSkillIndicator();
   }
 
   // Tutorial overlay
@@ -144,7 +145,43 @@ function drawCollectibles() {
   }
 }
 
-// Draw defeat/success effects when enemies are negotiated
+// パワーアップアイテムの描画
+function drawPowerUps() {
+  for (const p of powerUps) {
+    if (!p.active) continue;
+    
+    const x = p.x;
+    const y = p.y + Math.sin(game.time * 0.1) * 2;
+    const skill = SKILLS[p.type];
+    
+    // 外枠（光るエフェクト）
+    const pulse = Math.sin(game.time * 0.12) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(x + 12, y + 12, 18, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 背景円
+    ctx.fillStyle = skill.color;
+    ctx.beginPath();
+    ctx.arc(x + 12, y + 12, 14, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 内側の円（グラデーション風）
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.arc(x + 10, y + 10, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    
+    // アイコン
+    ctx.font = "18px sans-serif";
+    ctx.fillText(skill.icon, x + 3, y + 18);
+  }
+}
+
+// Draw defeat/success effects when enemies are stomped
 function drawDefeatEffects() {
   for (const effect of game.defeatEffects) {
     const alpha = clamp(effect.timer / 60, 0, 1);
@@ -312,25 +349,47 @@ function drawTiles(pal) {
         ctx.moveTo(x+TILE-8, y+8); ctx.lineTo(x+8, y+TILE-8);
         ctx.stroke();
       } else if (t === 5) {
-        // 交渉ゲート（交渉しないと進めない壁）
+        // ゲート（敵を倒さなくても通れるように変更）
         ctx.fillStyle = "#4a3a2a";
         ctx.fillRect(x, y, TILE, TILE);
-        // 鍵付きドア
         ctx.fillStyle = "#8b7355";
         ctx.fillRect(x+4, y+2, TILE-8, TILE-4);
-        // ドアノブ
         ctx.fillStyle = "#d4af37";
         ctx.beginPath();
         ctx.arc(x+TILE-10, y+TILE/2, 4, 0, Math.PI*2);
         ctx.fill();
-        // 「交渉」アイコン
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px sans-serif";
-        ctx.fillText("🤝", x+6, y+TILE/2+4);
-        // 点滅エフェクト
-        const pulse = Math.sin(game.time * 0.1) * 0.2 + 0.3;
-        ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
-        ctx.fillRect(x, y, TILE, TILE);
+      } else if (t === 6) {
+        // アイテムボックス（?ブロック）
+        const key = `${tx},${ty}`;
+        const boxState = itemBoxes.get(key);
+        const used = boxState && boxState.used;
+        
+        if (used) {
+          // 使用済み（暗い色）
+          ctx.fillStyle = "#5a4a3a";
+          ctx.fillRect(x, y, TILE, TILE);
+          ctx.fillStyle = "#4a3a2a";
+          ctx.fillRect(x+3, y+3, TILE-6, TILE-6);
+        } else {
+          // 未使用（金色の?ブロック）
+          // 外枠
+          ctx.fillStyle = "#d4a400";
+          ctx.fillRect(x, y, TILE, TILE);
+          // 内側
+          ctx.fillStyle = "#ffcc00";
+          ctx.fillRect(x+3, y+3, TILE-6, TILE-6);
+          // ハイライト
+          ctx.fillStyle = "#ffe066";
+          ctx.fillRect(x+5, y+5, TILE-15, TILE-15);
+          // ?マーク
+          ctx.fillStyle = "#8b6914";
+          ctx.font = "bold 22px sans-serif";
+          ctx.fillText("?", x+10, y+28);
+          // 点滅エフェクト
+          const pulse = Math.sin(game.time * 0.15) * 0.15 + 0.85;
+          ctx.fillStyle = `rgba(255, 255, 200, ${0.3 * pulse})`;
+          ctx.fillRect(x, y, TILE, TILE);
+        }
       }
     }
   }
@@ -450,159 +509,66 @@ function drawPlayer(pal) {
     ctx.fillRect(px - 7, briefcaseY + 2, 4, 2);
   }
 
-  // === Negotiation indicator ===
-  const eNear = nearestNegotiableEnemy();
-  if (game.state === "play" && eNear && !player.negotiating) {
-    // Pulsing effect
-    const pulse = Math.sin(game.time * 0.15) * 0.3 + 0.7;
-    
-    // Background pill
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.6 * pulse})`;
-    ctx.fillRect(px - 12, py - 28, 52, 20);
-    
-    // Border
-    ctx.strokeStyle = `rgba(255, 200, 100, ${pulse})`;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(px - 12, py - 28, 52, 20);
-    
-    // Text
-    ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
-    ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("E:交渉", px - 4, py - 14);
-    
-    // Arrow pointing down
-    ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
+  // === スキル発動中のオーラエフェクト ===
+  if (player.activeSkill) {
+    const skill = SKILLS[player.activeSkill];
+    const pulse = Math.sin(game.time * 0.2) * 0.3 + 0.5;
+    ctx.fillStyle = skill.color;
+    ctx.globalAlpha = pulse * 0.3;
     ctx.beginPath();
-    ctx.moveTo(px + 13, py - 8);
-    ctx.lineTo(px + 8, py - 2);
-    ctx.lineTo(px + 18, py - 2);
-    ctx.closePath();
+    ctx.arc(px + pw/2, py + ph/2, 30, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  
+  // === 無敵時の点滅エフェクト ===
+  if (player.invincible) {
+    const blink = Math.floor(game.time / 4) % 2;
+    if (blink === 0) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.fillRect(px, py, pw, ph);
+    }
   }
 }
 
-function drawNegotiationUI() {
-  if (!player.negotiating || negoState.phase === "idle") return;
+// スキルインジケーター表示
+function drawSkillIndicator() {
+  if (!player.activeSkill) return;
   
-  // Draw choice panel at bottom of screen
-  const panelH = 150;
-  const panelY = H - panelH - 10;
+  const skill = SKILLS[player.activeSkill];
+  const skillDuration = skill.duration;
+  const remaining = player.skillTimer / skillDuration;
   
-  // Background panel
-  ctx.fillStyle = "rgba(0,0,0,0.88)";
-  ctx.fillRect(10, panelY, W - 20, panelH);
-  ctx.strokeStyle = "rgba(255,200,100,0.5)";
+  // 画面右下にスキル表示
+  const indicatorX = W - 150;
+  const indicatorY = H - 80;
+  
+  // 背景
+  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.fillRect(indicatorX, indicatorY, 140, 50);
+  ctx.strokeStyle = skill.color;
   ctx.lineWidth = 2;
-  ctx.strokeRect(10, panelY, W - 20, panelH);
+  ctx.strokeRect(indicatorX, indicatorY, 140, 50);
   
-  // Show current resources
-  ctx.fillStyle = "#ffd700";
-  ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`所持: 💰${player.coins}  👤${player.connections}`, W - 150, panelY + 18);
+  // アイコンと名前
+  ctx.font = "24px sans-serif";
+  ctx.fillText(skill.icon, indicatorX + 10, indicatorY + 32);
   
-  if (negoState.phase === "choice") {
-    // Title with clearer instructions
-    ctx.fillStyle = "rgba(255,200,100,0.95)";
-    ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("▼ 選択肢を選んでください", 24, panelY + 22);
-    
-    // Instructions on right side
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("↑↓:選択 | 1-3:直接選択 | Enter:決定 | Esc:キャンセル", 24, panelY + 140);
-    
-    // Draw choices
-    const choiceStartY = panelY + 42;
-    const choiceHeight = 32;
-    
-    for (let i = 0; i < negoState.choices.length; i++) {
-      const choice = negoState.choices[i];
-      const cy = choiceStartY + i * choiceHeight;
-      const isSelected = i === negoState.selectedChoice;
-      
-      // Check if player can afford
-      const coinCost = choice.costCoins || 0;
-      const connectionCost = choice.costConnections || 0;
-      const canAfford = player.coins >= coinCost && player.connections >= connectionCost;
-      
-      // Selection highlight
-      if (isSelected) {
-        ctx.fillStyle = canAfford ? "rgba(100, 150, 255, 0.35)" : "rgba(255, 100, 100, 0.25)";
-        ctx.fillRect(20, cy - 4, W - 50, choiceHeight - 2);
-      }
-      
-      // Choice number
-      ctx.fillStyle = isSelected ? (canAfford ? "#64b5f6" : "#ff8080") : "rgba(255,255,255,0.6)";
-      ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
-      ctx.fillText(`[${i + 1}]`, 28, cy + 14);
-      
-      // Choice text
-      ctx.fillStyle = isSelected ? (canAfford ? "rgba(255,255,255,0.95)" : "rgba(255,150,150,0.9)") : "rgba(255,255,255,0.7)";
-      ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-      ctx.fillText(choice.text, 60, cy + 14);
-      
-      // Cost indicator
-      let costX = 450;
-      if (coinCost > 0) {
-        ctx.fillStyle = player.coins >= coinCost ? "#ffd700" : "#ff4444";
-        ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-        ctx.fillText(`💰-${coinCost}`, costX, cy + 14);
-        costX += 45;
-      }
-      if (connectionCost > 0) {
-        ctx.fillStyle = player.connections >= connectionCost ? "#4a90d9" : "#ff4444";
-        ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-        ctx.fillText(`👤-${connectionCost}`, costX, cy + 14);
-      }
-      
-      // Success rate indicator (visual hint)
-      const rateX = W - 200;
-      const rateW = 80;
-      ctx.fillStyle = "rgba(255,255,255,0.2)";
-      ctx.fillRect(rateX, cy + 4, rateW, 10);
-      
-      // Color based on success rate
-      let rateColor = "#22c55e"; // green for high
-      if (choice.successRate < 0.5) rateColor = "#ef4444"; // red for low
-      else if (choice.successRate < 0.7) rateColor = "#eab308"; // yellow for medium
-      
-      ctx.fillStyle = rateColor;
-      ctx.fillRect(rateX, cy + 4, rateW * choice.successRate, 10);
-      
-      // Success rate text
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "10px system-ui, -apple-system, Segoe UI, sans-serif";
-      ctx.fillText(`${Math.round(choice.successRate * 100)}%`, rateX + rateW + 5, cy + 12);
-      
-      // Alert modifier indicator
-      if (choice.alertMod !== 0) {
-        ctx.fillStyle = choice.alertMod < 0 ? "#22c55e" : "#ef4444";
-        ctx.font = "11px system-ui, -apple-system, Segoe UI, sans-serif";
-        const modText = choice.alertMod < 0 ? `警戒${choice.alertMod}` : `警戒+${choice.alertMod}`;
-        ctx.fillText(modText, W - 55, cy + 14);
-      }
-    }
-  } else if (negoState.phase === "resolving") {
-    // Show result
-    const resultColor = negoState.lastResult === "success" ? "#22c55e" : "#ef4444";
-    const resultText = negoState.lastResult === "success" ? "💼 契約成立！" : "❌ 交渉決裂";
-    
-    ctx.fillStyle = resultColor;
-    ctx.font = "bold 26px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText(resultText, W/2 - 80, panelY + 60);
-    
-    // Progress bar for resolve timer
-    const timerW = 200;
-    const timerX = W/2 - timerW/2;
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
-    ctx.fillRect(timerX, panelY + 90, timerW, 8);
-    ctx.fillStyle = resultColor;
-    ctx.fillRect(timerX, panelY + 90, timerW * (negoState.resolveTimer / 120), 8);
-  }
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
+  ctx.fillText(skill.name, indicatorX + 45, indicatorY + 22);
+  
+  // 残り時間バー
+  ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.fillRect(indicatorX + 45, indicatorY + 30, 85, 10);
+  ctx.fillStyle = skill.color;
+  ctx.fillRect(indicatorX + 45, indicatorY + 30, 85 * remaining, 10);
 }
 
 function drawEnemies(pal) {
   for (const e of enemies) {
+    if (e.defeated && !e.isBoss) continue; // 倒された敵は描画しない
+    
     drawEnemyByType(e);
 
     // label near if close
@@ -611,7 +577,7 @@ function drawEnemies(pal) {
     if (dx < 140 && dy < 90) {
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-      const tag = e.negotiable ? "交渉可" : "交渉不可";
+      const tag = e.unstompable ? "踏めない！" : "踏み付け可";
       ctx.fillText(`${nameOfEnemy(e.type)}（${tag}）`, e.x - 6, e.y - 8);
     }
   }
@@ -621,13 +587,10 @@ function drawEnemyByType(e) {
   const x = e.x, y = e.y, w = e.w, h = e.h;
   const facing = e.dir || 1;
   
-  // Stance-based outline glow
-  let glowColor = null;
-  if (e.stance === "allied") glowColor = "rgba(34, 197, 94, 0.5)";
-  else if (e.stance === "neutral" || !e.hostile) glowColor = "rgba(234, 179, 8, 0.4)";
-  
-  if (glowColor) {
-    ctx.fillStyle = glowColor;
+  // 踏めない敵には赤いオーラ
+  if (e.unstompable) {
+    const pulse = Math.sin(game.time * 0.1) * 0.2 + 0.4;
+    ctx.fillStyle = `rgba(255, 100, 100, ${pulse})`;
     ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
   }
   
@@ -916,17 +879,11 @@ function drawEnemyByType(e) {
       ctx.fillStyle = "#f5f5f5";
       ctx.fillRect(x - 7, y + 20, 7, 8);
     }
-    // 交渉必須マーク
-    if (e.isGateGuard) {
-      ctx.fillStyle = "rgba(255, 200, 100, 0.8)";
-      ctx.font = "bold 10px sans-serif";
-      ctx.fillText("🤝", x + w/2 - 6, y - 4);
-    }
 
   } else if (e.type === "boss_market") {
-    // Stage 1 Boss: 海外バイヤー長 - larger, more impressive
+    // Stage 1 Boss: 海外バイヤー長
     // Draw boss glow aura
-    if (e.stance !== "allied") {
+    if (!e.defeated) {
       const pulse = Math.sin(game.time * 0.08) * 0.2 + 0.4;
       ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
       ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
@@ -963,13 +920,13 @@ function drawEnemyByType(e) {
     ctx.font = "12px sans-serif";
     ctx.fillText("👑", x + w/2 - 6, y - 8);
     // Boss HP indicator
-    if (e.bossHP !== undefined && e.stance !== "allied") {
+    if (e.bossHP !== undefined && !e.defeated) {
       drawBossHPBar(x, y - 20, w, e.bossHP, 3);
     }
     
   } else if (e.type === "boss_office") {
-    // Stage 2 Boss: CEO - commanding presence
-    if (e.stance !== "allied") {
+    // Stage 2 Boss: CEO
+    if (!e.defeated) {
       const pulse = Math.sin(game.time * 0.1) * 0.2 + 0.5;
       ctx.fillStyle = `rgba(100, 150, 255, ${pulse})`;
       ctx.fillRect(x - 8, y - 8, w + 16, h + 16);
@@ -1006,13 +963,13 @@ function drawEnemyByType(e) {
     ctx.font = "14px sans-serif";
     ctx.fillText("🏆", x + w/2 - 7, y - 10);
     // Boss HP indicator
-    if (e.bossHP !== undefined && e.stance !== "allied") {
+    if (e.bossHP !== undefined && !e.defeated) {
       drawBossHPBar(x, y - 25, w, e.bossHP, 3);
     }
     
   } else if (e.type === "boss_port") {
-    // Stage 3 Boss: 通関局長 - authoritative government figure
-    if (e.stance !== "allied") {
+    // Stage 3 Boss: 通関局長
+    if (!e.defeated) {
       const pulse = Math.sin(game.time * 0.12) * 0.25 + 0.45;
       ctx.fillStyle = `rgba(100, 200, 150, ${pulse})`;
       ctx.fillRect(x - 10, y - 10, w + 20, h + 20);
@@ -1056,15 +1013,14 @@ function drawEnemyByType(e) {
     ctx.font = "14px sans-serif";
     ctx.fillText("🏛️", x + w/2 - 7, y - 16);
     // Boss HP indicator
-    if (e.bossHP !== undefined && e.stance !== "allied") {
+    if (e.bossHP !== undefined && !e.defeated) {
       drawBossHPBar(x, y - 30, w, e.bossHP, 3);
     }
 
   } else {
     // Default fallback
     let c = "#ef4444";
-    if (e.stance === "neutral" || !e.hostile) c = "#eab308";
-    if (e.stance === "allied") c = "#22c55e";
+    if (!e.hostile) c = "#eab308";
     ctx.fillStyle = c;
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -1117,7 +1073,7 @@ function nameOfEnemy(type) {
 }
 
 function drawHUD(pal) {
-  if (!game.stage) return; // Guard for when stage is not yet loaded
+  if (!game.stage) return;
   
   // top bar
   ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -1128,11 +1084,10 @@ function drawHUD(pal) {
   ctx.fillText(game.stage.title, 12, 20);
 
   // Trust/評判 bar
-  const trustW = 160, trustH = 10;
+  const trustW = 140, trustH = 10;
   const tx = 12, ty = 30;
   ctx.fillStyle = "rgba(255,255,255,0.18)";
   ctx.fillRect(tx, ty, trustW, trustH);
-  // 評判の色（高いと緑、低いと赤）
   const trustColor = player.trust > 60 ? "#22c55e" : (player.trust > 30 ? "#eab308" : "#ef4444");
   ctx.fillStyle = trustColor;
   ctx.fillRect(tx, ty, trustW * (player.trust/100), trustH);
@@ -1142,35 +1097,32 @@ function drawHUD(pal) {
 
   // HP
   ctx.font = "14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`❤️ ${player.hp}`, 260, 38);
-  
-  // 警戒レベル
-  ctx.fillText(`⚠️ ${game.alert}`, 310, 38);
+  ctx.fillText(`❤️ ${player.hp}`, 220, 38);
   
   // お金（コイン）💰
   ctx.fillStyle = "#ffd700";
   ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`💰 ${player.coins}`, 360, 38);
+  ctx.fillText(`💰 ${player.coins}`, 280, 38);
   
   // 人脈（コネクション）👤
   ctx.fillStyle = "#4a90d9";
-  ctx.fillText(`👤 ${player.connections}`, 410, 38);
+  ctx.fillText(`👤 ${player.connections}`, 350, 38);
   
   // Career level indicator
   const careerInfo = CAREER_LEVELS.find(l => l.level === playerGlobal.careerLevel);
   ctx.fillStyle = "#ffd700";
   ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
-  ctx.fillText(`🏆 ${careerInfo.title}`, 470, 38);
+  ctx.fillText(`🏆 ${careerInfo.title}`, 420, 38);
   
   // Boss status indicator
   if (!game.bossDefeated) {
     ctx.fillStyle = "#ef4444";
     ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("👑 ボス未撃破", 560, 38);
+    ctx.fillText("👑 ボス:踏め!", 510, 38);
   } else {
     ctx.fillStyle = "#22c55e";
     ctx.font = "bold 12px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("✅ ボス撃破済", 560, 38);
+    ctx.fillText("✅ ボス撃破", 510, 38);
   }
 
   // message
@@ -1950,12 +1902,12 @@ function drawTutorialOverlay() {
     {
       title: "🎮 ようこそ！商社マンへ",
       content: [
-        "このゲームは「交渉」がメインのアクションゲームです。",
-        "敵を倒すのではなく、交渉して契約を取ることが目標です！",
+        "このゲームはマリオ風アクションゲームです！",
+        "敵を踏み付けてアイテムをゲットしよう！",
         "",
         "まずは基本操作を覚えましょう。"
       ],
-      icon: "🤝"
+      icon: "🦶"
     },
     {
       title: "🏃 移動操作",
@@ -1970,27 +1922,27 @@ function drawTutorialOverlay() {
     {
       title: "💰 アイテム収集",
       content: [
-        "💰 コイン：交渉で使えるお金",
-        "👤 名刺：人脈ポイント（強力な交渉材料）",
-        "",
-        "これらを集めると交渉が有利になります！"
+        "💰 コイン：たくさん集めよう！",
+        "👤 名刺：人脈ポイントを増やせ！",
+        "?ブロック：下から叩くとアイテムが出る！",
+        "敵を踏むとドロップアイテムをゲット！"
       ],
       icon: "✨"
     },
     {
-      title: "🤝 交渉のやり方",
+      title: "⚡ パワーアップ",
       content: [
-        "敵に近づくと「E:交渉」と表示されます。",
-        "E キーを押すと交渉画面が開きます。",
-        "↑↓ または 1-3 で選択肢を選び、",
-        "Enter または Space で決定！"
+        "⚡ スピードアップ：移動が速くなる！",
+        "🦘 ジャンプ強化：高く跳べる！",
+        "⭐ 無敵：敵に触れても平気！",
+        "🧲 アイテム吸引：アイテムが寄ってくる！"
       ],
-      icon: "💼"
+      icon: "💪"
     },
     {
       title: "🎯 勝利条件",
       content: [
-        "ステージ内の「ボス」を交渉で3回倒す。",
+        "ステージ内の「ボス」を3回踏み付けろ！",
         "ボスを倒したら、ゴール（金色のゲート）へ！",
         "",
         "がんばれ、商社マン！"

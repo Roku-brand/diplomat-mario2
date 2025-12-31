@@ -7,10 +7,11 @@ function tileAt(tx, ty) {
   return game.map[ty][tx];
 }
 
-function isSolidTile(v) { return v === 1 || v === 4 || v === 5; } // 4=breakable, 5=negotiation gate
+function isSolidTile(v) { return v === 1 || v === 4 || v === 5 || v === 6; } // 4=breakable, 5=gate, 6=item box
 function isHazardTile(v) { return v === 2; }
 function isGoalTile(v) { return v === 3; }
-function isGateTile(v) { return v === 5; } // 交渉ゲート
+function isGateTile(v) { return v === 5; }
+function isItemBoxTile(v) { return v === 6; } // ?ブロック
 
 function worldToTile(x, y) {
   return { tx: Math.floor(x / TILE), ty: Math.floor(y / TILE) };
@@ -64,6 +65,11 @@ function resolveCollisions(ent) {
         } else if (ent.vy < 0) {
           ent.y = tileY + TILE;
           ent.vy = 0;
+          
+          // アイテムボックス（?ブロック）を叩いた
+          if (isItemBoxTile(t) && ent === player) {
+            hitItemBox(tx, ty);
+          }
         }
       }
     }

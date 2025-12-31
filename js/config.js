@@ -100,6 +100,21 @@ function drawParticles() {
     } else if (p.type === "damage") {
       ctx.fillStyle = `rgba(255, 100, 100, ${alpha})`;
       ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    } else if (p.type === "itembox") {
+      ctx.fillStyle = `rgba(255, 200, 100, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === "powerup") {
+      ctx.fillStyle = `rgba(255, 100, 200, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === "stomp") {
+      ctx.fillStyle = `rgba(255, 150, 50, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 1.2, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }

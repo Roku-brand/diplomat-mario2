@@ -27,15 +27,21 @@ function loadStage(idx) {
   player.hp = 3;
   player.dashT = 0;
   player.dashCD = 0;
-  player.negotiating = null;
-  player.negoProgress = 0;
   player.canDoubleJump = true;
+  
+  // スキル状態リセット
+  player.activeSkill = null;
+  player.skillTimer = 0;
+  player.speedBoost = false;
+  player.jumpBoost = false;
+  player.invincible = false;
+  player.magnetActive = false;
   
   // Apply career level bonuses
   player.coins = 0;
   player.connections = 0;
-  if (playerGlobal.careerLevel >= 3) player.coins += 2; // 課長ボーナス
-  if (playerGlobal.careerLevel >= 4) player.connections += 1; // 部長ボーナス
+  if (playerGlobal.careerLevel >= 3) player.coins += 2;
+  if (playerGlobal.careerLevel >= 4) player.connections += 1;
 
   // enemies
   enemies = [];
@@ -62,12 +68,18 @@ function loadStage(idx) {
       collectibles.push({ ...c, collected: false });
     }
   }
+  
+  // パワーアップアイテム
+  powerUps = [];
+  
+  // アイテムボックス状態リセット
+  itemBoxes.clear();
 
   // breakable tiles
   breakTiles.clear();
   for (let y=0; y<game.mapH; y++) {
     for (let x=0; x<game.mapW; x++) {
-      if (game.map[y][x] === 4) breakTiles.set(`${x},${y}`, 120); // durability frames
+      if (game.map[y][x] === 4) breakTiles.set(`${x},${y}`, 120);
     }
   }
 }
@@ -252,7 +264,7 @@ function update() {
           game.showTutorial = true;
           game.tutorialStep = 0;
         }
-        say("交渉開始！お金💰と人脈👤を集めて契約を取れ！", 150);
+        say("ゲームスタート！💰と👤を集めてゴールを目指せ！", 150);
       }
     }
     return;
@@ -324,32 +336,36 @@ function update() {
 
   if (dashHold && player.dashCD === 0) {
     player.dashT = 14;
-    player.dashCD = 10; // shorter cooldown for continuous dashing while holding
+    player.dashCD = 10;
     playSFX("dash");
   }
 
-  const moveSpeed = player.dashT > 0 ? 6.2 : 3.2;
+  // スピードアップスキルの効果
+  let moveSpeed = player.dashT > 0 ? 6.2 : 3.2;
+  if (player.speedBoost) moveSpeed *= 1.5;
 
   if (left && !right) { player.vx = -moveSpeed; player.face = -1; }
   else if (right && !left) { player.vx = moveSpeed; player.face = 1; }
   else player.vx = lerp(player.vx, 0, 0.4);
 
   // Jump and Double Jump logic
+  // ジャンプ力アップスキルの効果
+  const jumpPower = player.jumpBoost ? -15.5 : -13.2;
+  const doubleJumpPower = player.jumpBoost ? -14.0 : -12.0;
+  
   if (jump) {
     if (player.onGround) {
-      // First jump from ground
-      player.vy = -13.2;
+      player.vy = jumpPower;
       player.onGround = false;
       playSFX("jump");
     } else if (player.canDoubleJump) {
-      // Double jump in air
-      player.vy = -12.0; // slightly weaker than first jump
+      player.vy = doubleJumpPower;
       player.canDoubleJump = false;
       playSFX("doubleJump");
     }
   }
 
-  // Reset double jump ability when landing (handles both: after double-jump and after falling)
+  // Reset double jump ability when landing
   if (player.onGround) {
     player.canDoubleJump = true;
   }
@@ -357,42 +373,24 @@ function update() {
   // gravity
   player.vy = clamp(player.vy + GRAVITY, -999, MAX_FALL);
 
-  // negotiation start/toggle (press E to start, Esc to cancel, or move away)
-  const eNear = nearestNegotiableEnemy();
-  const eKeyPressed = pressed("e") || pressed("E");
-  
-  if (eKeyPressed && !player.negotiating && eNear) {
-    // Start negotiation when pressing E near a negotiable enemy
-    startNegotiation(eNear);
-  } else if (player.negotiating) {
-    // Continue negotiation tick (handles choice selection, etc.)
-    negotiationTick();
-    
-    // Cancel negotiation if player moves too far (handled inside negotiationTick)
-    // or if player presses Escape
-    if (pressed("Escape") || pressed("Backspace")) {
-      stopNegotiation();
-      say("交渉を中断した。", 80);
-    }
-  }
-
   // apply movement/collision
   resolveCollisions(player);
 
+  // スキルタイマー更新
+  updateSkillTimer();
+
   // Collect coins and connection points
   updateCollectibles();
+  
+  // パワーアップアイテムの更新
+  updatePowerUps();
 
   // hazards: trust drains
   if (hazardTouch(player)) {
     player.trust = clamp(player.trust - 0.35, 0, 100);
-    // In port hazard also raises alert slowly (税関監視)
-    if (game.stage.id === "port" && Math.random() < 0.03) {
-      game.alert = clamp(game.alert + 1, 0, 3);
-      say("税関の監視が反応した。警戒 +1", 90);
-    }
   }
 
-  // breakable tiles: standing on them decreases durability
+  // breakable tiles
   updateBreakablesUnderPlayer();
 
   // goal - requires boss to be defeated first (if stage has a boss)
@@ -401,13 +399,13 @@ function update() {
     if (!hasBoss || game.bossDefeated) {
       game.state = "clear";
       playSFX("stageClear");
-      say("契約成立！次のステージへ", 120);
+      say("ステージクリア！次のステージへ", 120);
     } else {
-      say("ボスを倒さないと進めない！ステージボスを見つけて交渉しろ！", 120);
+      say("ボスを倒さないと進めない！ボスを踏み付けて倒せ！", 120);
     }
   }
 
-  // enemy updates and interactions
+  // enemy updates and interactions (踏み付け攻撃)
   updateEnemies();
   
   // Update defeat effects
@@ -415,15 +413,14 @@ function update() {
 
   // fail conditions
   if (player.y > game.mapH*TILE + 220) {
-    // fell into pit
     player.hp = 0;
-    die("落下：契約書を落としてしまった…");
+    die("落下：穴に落ちてしまった…");
   }
   if (player.trust <= 0) {
-    die("評判が地に落ちた：取引先からの信頼を失った。");
+    die("評判が地に落ちた：ゲームオーバー。");
   }
   if (player.hp <= 0) {
-    die("体力の限界：過労でダウン。");
+    die("体力の限界：ゲームオーバー。");
   }
 
   // camera
@@ -458,37 +455,25 @@ function updateBreakablesUnderPlayer() {
 }
 
 function updateEnemies() {
-  const alertMul = 1 + game.alert * 0.22;
-
-  for (const e of enemies) {
-    // drones hover: ignore ground a bit
-    if (e.type === "drone") {
-      e.y += Math.sin(game.time * 0.06) * 0.45;
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    
+    // 倒された敵は削除
+    if (e.defeated && !e.isBoss) {
+      enemies.splice(i, 1);
+      continue;
     }
-
-    // allied/neutral don't attack
-    const canAttack = e.hostile && e.stance !== "allied";
 
     // patrol
     const patrolLeft = e.originX - e.patrol;
     const patrolRight = e.originX + e.patrol;
 
-    // aggro movement toward player if close and hostile
-    const dx = (player.x + player.w/2) - (e.x + e.w/2);
-    const dist = Math.abs(dx);
+    let speed = e.vx;
 
-    let speed = e.vx * alertMul;
-    if (e.stance === "neutral") speed *= 0.6;
-
-    if (canAttack && dist < e.aggroRange) {
-      e.dir = dx >= 0 ? 1 : -1;
-      e.vx = e.dir * speed;
-    } else {
-      // normal patrol
-      e.vx = e.dir * speed * 0.85;
-      if (e.x < patrolLeft) e.dir = 1;
-      if (e.x > patrolRight) e.dir = -1;
-    }
+    // normal patrol
+    e.vx = e.dir * speed * 0.85;
+    if (e.x < patrolLeft) e.dir = 1;
+    if (e.x > patrolRight) e.dir = -1;
 
     // gravity for non-drones
     if (e.type !== "drone") {
@@ -499,22 +484,26 @@ function updateEnemies() {
 
     resolveCollisions(e);
 
-    // contact damage if hostile
-    if (canAttack && aabb(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) {
-      // If negotiating, break it
-      if (player.negotiating) stopNegotiation();
-      // damage
-      player.hp -= e.contactDamage;
-      player.trust = clamp(player.trust - 7, 0, 100);
-      playSFX("damage");
-      triggerScreenShake(8, 15);
-      createParticles(player.x + player.w/2, player.y + player.h/2, "damage", 12);
-      say("衝突！商談が台無しに（HP -1 / 評判 -7）", 120);
-      // knockback
-      player.vx = -e.dir * 5.2;
-      player.vy = -7.5;
-      // alert rises on clash
-      game.alert = clamp(game.alert + 1, 0, 3);
+    // 敵との衝突判定
+    if (e.hostile && !e.defeated && aabb(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) {
+      // プレイヤーが上から落下中かどうか判定（踏み付け攻撃）
+      const playerBottom = player.y + player.h;
+      const enemyTop = e.y;
+      const playerFalling = player.vy > 0;
+      const stompZone = playerBottom <= enemyTop + 15 && playerBottom >= enemyTop - 5;
+      
+      if (playerFalling && stompZone && !e.unstompable) {
+        // 踏み付け成功！
+        const stomped = stompEnemy(e);
+        if (stomped) {
+          // プレイヤーを上にバウンド
+          player.vy = -10;
+          player.canDoubleJump = true;
+        }
+      } else {
+        // 横から当たった場合はダメージ
+        playerTakeDamage(e);
+      }
     }
   }
 }
@@ -523,8 +512,42 @@ function updateCollectibles() {
   const collectW = 24;
   const collectH = 24;
   
-  for (const c of collectibles) {
+  for (let i = collectibles.length - 1; i >= 0; i--) {
+    const c = collectibles[i];
     if (c.collected) continue;
+    
+    // アイテムボックスから出たアイテムは物理挙動
+    if (c.fromBox && c.vy !== undefined) {
+      c.vy += 0.3;
+      c.y += c.vy;
+      
+      // 地面で止まる
+      const ty = Math.floor((c.y + collectH) / TILE);
+      const tx = Math.floor((c.x + collectW/2) / TILE);
+      if (tileAt(tx, ty) === 1 || tileAt(tx, ty) === 4) {
+        c.y = ty * TILE - collectH;
+        c.vy = 0;
+      }
+      
+      // 画面外に落ちたら削除
+      if (c.y > game.mapH * TILE + 100) {
+        collectibles.splice(i, 1);
+        continue;
+      }
+    }
+    
+    // アイテム吸引スキルの効果
+    if (player.magnetActive) {
+      const dx = (player.x + player.w/2) - (c.x + collectW/2);
+      const dy = (player.y + player.h/2) - (c.y + collectH/2);
+      const dist = Math.hypot(dx, dy);
+      
+      if (dist < 150 && dist > 5) {
+        // 吸引
+        c.x += dx / dist * 4;
+        c.y += dy / dist * 4;
+      }
+    }
     
     // Check collision with player
     if (aabb(player.x, player.y, player.w, player.h, c.x, c.y, collectW, collectH)) {
@@ -533,12 +556,12 @@ function updateCollectibles() {
         player.coins++;
         playSFX("coin");
         createParticles(c.x + collectW/2, c.y + collectH/2, "coin", 8);
-        say("💰 お金+1！（交渉材料として使える）", 80);
+        say("💰 コイン+1！", 50);
       } else if (c.type === "connection") {
         player.connections++;
         playSFX("connection");
         createParticles(c.x + collectW/2, c.y + collectH/2, "connection", 10);
-        say("👤 人脈+1！（有力なコネクション獲得）", 80);
+        say("👤 人脈+1！", 50);
       }
     }
   }

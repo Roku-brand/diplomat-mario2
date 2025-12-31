@@ -47,7 +47,7 @@ const playerGlobal = {
 // Career level definitions
 const CAREER_LEVELS = [
   { level: 1, title: "新人営業", expRequired: 0, bonus: "なし" },
-  { level: 2, title: "主任", expRequired: 30, bonus: "交渉成功率+5%" },
+  { level: 2, title: "主任", expRequired: 30, bonus: "スピード+5%" },
   { level: 3, title: "課長", expRequired: 80, bonus: "初期コイン+2" },
   { level: 4, title: "部長", expRequired: 150, bonus: "初期人脈+1" },
   { level: 5, title: "役員", expRequired: 300, bonus: "全ボーナス適用" },
@@ -81,18 +81,23 @@ const player = {
   hp: 3,
   dashT: 0,
   dashCD: 0,
-  negotiating: null, // enemy ref when negotiating
-  negoProgress: 0,
   canDoubleJump: true, // double jump ability flag
-  coins: 0, // お金（交渉材料）
-  connections: 0, // 人脈ポイント（交渉材料）
+  coins: 0, // お金
+  connections: 0, // 人脈ポイント
+  // スキル/パワーアップシステム
+  activeSkill: null, // 現在発動中のスキル
+  skillTimer: 0, // スキル残り時間
+  speedBoost: false, // スピードアップ
+  jumpBoost: false, // ジャンプ力アップ
+  invincible: false, // 無敵状態
+  magnetActive: false, // アイテム吸引
 };
 
 // Collectibles in the stage
 let collectibles = []; // { type: "coin" | "connection", x, y, collected }
 
 function enemyTemplate(type) {
-  // negotiable: true/false; difficulty affects required time; hostility affects contact damage
+  // 敵の基本テンプレート - 踏み付けで倒せる、アイテムをドロップする
   const base = {
     type,
     x: 0, y: 0, w: 28, h: 36,
@@ -101,110 +106,94 @@ function enemyTemplate(type) {
     patrol: 80,
     originX: 0,
     hostile: true,
-    negotiable: true,
-    difficulty: 1.0,  // higher = slower progress / more failure chance
-    stance: "hostile", // hostile | neutral | allied
-    aggroRange: 160,
     contactDamage: 1,
-    talkText: "",
-    isGateGuard: false, // true if this enemy blocks a negotiation gate
+    dropType: "coin", // ドロップするアイテムの種類
+    defeated: false, // 倒されたかどうか
+    isBoss: false,
+    bossHP: 1, // ボスは複数回踏み付けが必要
+    bossPhase: 0,
   };
 
-  // 商社マン向けの敵キャラクター
+  // 敵タイプごとの設定
   if (type === "competitor") {
-    // 競合企業の営業マン
+    // 競合営業マン - 素早い動き
     return { ...base,
-      vx: 0.9, patrol: 120, difficulty: 1.1, aggroRange: 170,
-      talkText: "競合営業：『この案件はウチが先に動いてる。引けよ』"
+      vx: 1.0, patrol: 120, dropType: "coin"
     };
   }
   if (type === "buyer") {
-    // バイヤー（取引先）
+    // バイヤー - 人脈をドロップ
     return { ...base,
-      vx: 0.6, patrol: 70, hostile: false, stance: "neutral",
-      difficulty: 0.9, aggroRange: 120,
-      talkText: "バイヤー：『価格と納期、両方クリアできるか？』"
+      vx: 0.6, patrol: 70, dropType: "connection"
     };
   }
   if (type === "broker") {
-    // 仲介業者
+    // ブローカー - ランダムなパワーアップ
     return { ...base,
-      vx: 1.0, patrol: 110, difficulty: 1.0, aggroRange: 170,
-      talkText: "ブローカー：『紹介料は？それとも別ルートで行く？』"
+      vx: 1.0, patrol: 110, dropType: "powerup"
     };
   }
   if (type === "executive") {
-    // 大企業の重役
+    // 重役 - 大量のコイン
     return { ...base,
-      vx: 1.1, patrol: 140, difficulty: 1.6, aggroRange: 210,
-      talkText: "重役：『数字で語れ。情緒では動かん』"
+      vx: 1.1, patrol: 140, dropType: "coins3"
     };
   }
   if (type === "union") {
-    // 労働組合代表
+    // 組合代表 - 人脈
     return { ...base,
-      vx: 0.8, patrol: 150, difficulty: 1.2, aggroRange: 190,
-      talkText: "組合代表：『労働者の権利を無視するのか？』"
+      vx: 0.8, patrol: 150, dropType: "connection"
     };
   }
   if (type === "government") {
-    // 政府官僚
+    // 政府官僚 - パワーアップ
     return { ...base,
-      vx: 0.95, patrol: 170, difficulty: 1.9, aggroRange: 240,
-      talkText: "官僚：『許認可がなければ話にならん。書類は？』"
+      vx: 0.95, patrol: 170, dropType: "powerup"
     };
   }
   if (type === "media") {
-    // メディア記者（交渉不可）
+    // メディア記者 - 避けるべき敵（踏み付け不可）
     return { ...base,
-      vx: 1.3, patrol: 220, negotiable: false, difficulty: 999,
-      aggroRange: 260, talkText: "記者：交渉不可（スキャンダルを避けろ）"
+      vx: 1.3, patrol: 220, dropType: "none",
+      unstompable: true // 踏めない
     };
   }
   if (type === "gatekeeper") {
-    // 交渉ゲートの門番（交渉必須）
+    // ゲートキーパー - コインをドロップ
     return { ...base,
-      vx: 0, patrol: 0, difficulty: 1.3, aggroRange: 300,
-      isGateGuard: true,
-      talkText: "受付：『アポなしでは通せません。交渉してください』"
+      vx: 0.5, patrol: 60, dropType: "coin"
     };
   }
   
   // === BOSS CHARACTERS ===
   if (type === "boss_market") {
-    // Stage 1 Boss: 海外バイヤー長
     return { ...base,
-      vx: 0.5, patrol: 60, difficulty: 2.0, aggroRange: 350,
-      w: 36, h: 44, // larger size
+      vx: 0.5, patrol: 60,
+      w: 36, h: 44,
       isBoss: true,
-      bossPhase: 1, // 1-3 phases
-      bossHP: 3, // requires 3 successful negotiations
-      hostile: false, stance: "neutral",
-      talkText: "バイヤー長：『君の会社に興味がある。本気度を見せてもらおう』"
+      bossPhase: 1,
+      bossHP: 3,
+      dropType: "powerup"
     };
   }
   if (type === "boss_office") {
-    // Stage 2 Boss: CEO
     return { ...base,
-      vx: 0.4, patrol: 40, difficulty: 2.5, aggroRange: 400,
+      vx: 0.4, patrol: 40,
       w: 38, h: 46,
       isBoss: true,
       bossPhase: 1,
       bossHP: 3,
-      hostile: false, stance: "neutral",
-      talkText: "CEO：『我が社との提携を望むなら、それ相応の覚悟を見せろ』"
+      dropType: "powerup"
     };
   }
   if (type === "boss_port") {
-    // Stage 3 Boss: 通関局長
     return { ...base,
-      vx: 0.3, patrol: 30, difficulty: 3.0, aggroRange: 450,
+      vx: 0.3, patrol: 30,
       w: 40, h: 48,
       isBoss: true,
       bossPhase: 1,
       bossHP: 3,
-      hostile: false, stance: "neutral",
-      talkText: "通関局長：『すべての書類と許可が揃っているか確認する』"
+      dropType: "powerup"
     };
   }
   
@@ -213,3 +202,52 @@ function enemyTemplate(type) {
 
 let enemies = [];
 let breakTiles = new Map(); // key "x,y" -> remaining durability
+
+// アイテムボックス（?ブロック）の状態管理
+let itemBoxes = new Map(); // key "x,y" -> { used: boolean, itemType: string }
+
+// フィールド上のパワーアップアイテム
+let powerUps = []; // { type: string, x, y, vy, active }
+
+// スキル定義
+const SKILLS = {
+  speed: { name: "スピードアップ", duration: 600, color: "#ffd700", icon: "⚡" },
+  jump: { name: "ジャンプ強化", duration: 600, color: "#4ecdc4", icon: "🦘" },
+  invincible: { name: "無敵", duration: 300, color: "#ff69b4", icon: "⭐" },
+  magnet: { name: "アイテム吸引", duration: 480, color: "#9b59b6", icon: "🧲" },
+};
+
+// スキルを発動
+function activateSkill(skillType) {
+  const skill = SKILLS[skillType];
+  if (!skill) return;
+  
+  player.activeSkill = skillType;
+  player.skillTimer = skill.duration;
+  
+  // 各スキルのフラグをセット
+  if (skillType === "speed") player.speedBoost = true;
+  if (skillType === "jump") player.jumpBoost = true;
+  if (skillType === "invincible") player.invincible = true;
+  if (skillType === "magnet") player.magnetActive = true;
+  
+  createParticles(player.x + player.w/2, player.y + player.h/2, "powerup", 15);
+  playSFX("levelUp");
+  say(`${skill.icon} ${skill.name}発動！`, 120);
+}
+
+// スキルタイマー更新
+function updateSkillTimer() {
+  if (player.skillTimer > 0) {
+    player.skillTimer--;
+    if (player.skillTimer <= 0) {
+      // スキル終了
+      player.speedBoost = false;
+      player.jumpBoost = false;
+      player.invincible = false;
+      player.magnetActive = false;
+      player.activeSkill = null;
+      say("スキル効果が切れた", 80);
+    }
+  }
+}
