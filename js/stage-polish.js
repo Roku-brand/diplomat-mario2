@@ -202,6 +202,7 @@
   }
 
   function blockOffset(tx, ty) {
+    if (blockBumps.size === 0) return 0;
     const bump = blockBumps.get(`${tx},${ty}`);
     if (!bump || bump.delay > 0) return 0;
     const progress = 1 - bump.timer / bump.duration;
@@ -245,7 +246,7 @@
   }
 
   window.drawTiles = function drawTiles(pal) {
-    advanceBlockBumps();
+    if (blockBumps.size > 0) advanceBlockBumps();
 
     const startX = Math.floor(game.cameraX / TILE) - 2;
     const endX = Math.floor((game.cameraX + W) / TILE) + 2;
@@ -484,7 +485,7 @@
         e.vy = -8;
         e.vx = 0;
         createParticles(e.x + e.w / 2, e.y + e.h / 2, "stomp", 12);
-        createDefeatEffect(e.x, e.y, "negotiate_success", "ブロック撃破!");
+        createDefeatEffect(e.x, e.y, "negotiate_success", "\u30d6\u30ed\u30c3\u30af\u6483\u7834!");
         dropEnemyItem(e);
         addCareerExp(5);
         updateConnectionDict(e.type, true);
