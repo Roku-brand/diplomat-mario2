@@ -16,11 +16,9 @@
   applyBrightPalettes();
 
   window.draw = function draw() {
-    applyBrightPalettes();
-    ctx.save();
-    ctx.filter = "brightness(1.16) saturate(1.08)";
+    // Brightness is handled by the stage palettes below. Avoid a full-canvas
+    // filter here because it forces an expensive post-process every frame.
     baseDraw();
-    ctx.restore();
   };
 
   window.drawParallax = function drawParallax(color, factor, height) {
